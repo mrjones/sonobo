@@ -1,3 +1,4 @@
+import json
 import soco
 from soco.plugins.sharelink import ShareLinkPlugin
 import struct
@@ -5,15 +6,60 @@ import struct
 
 EVENT_DEVICE_PATH = '/dev/input/by-id/usb-Telink_Wireless_Receiver-if01-event-kbd'
 
+KEY_STRING_TO_CODE_MAP = {
+    'Q': 16,
+    'W': 17,
+    'E': 18,
+    'R': 19,
+    'T': 20,
+    'Y': 21,
+    'U': 22,
+    'I': 23,
+    'O': 24,
+    'P': 25,
+
+    'A': 30,
+    'S': 31,
+    'D': 32,
+    'F': 33,
+    'G': 34,
+    'H': 35,
+    'J': 36,
+    'K': 37,
+    'L': 38,
+
+    'Z': 44,
+    'X': 45,
+    'C': 46,
+    'V': 47,
+    'B': 48,
+    'N': 49,
+    'M': 50,
+}
+
+
 def speaker_with_name(speakers, name):
     for speaker in speakers:
         if speaker.player_name == name:
             return speaker
     raise ValueError('Could not find speaker with name "%s"' % name)
 
+def read_key_code_to_song_map():
+    songmap_contents = open('songmap.json')
+
+    key_strings_and_songs = json.load(songmap_contents)
+    key_code_to_song_map = {}
+    for song in key_strings_and_songs:
+        key_code_to_song_map[KEY_STRING_TO_CODE_MAP[song['key']]] = song['url']
+
+    return key_code_to_song_map
+
 def main():
     print("discovering sonos...")
     speakers = soco.discover()
+
+    key_code_to_song_map = read_key_code_to_song_map();
+    print(key_code_to_song_map);
 
     for speaker in speakers:
         print(" - %s" % (speaker.player_name))
@@ -68,40 +114,6 @@ def main():
             KEY_SPACE = 57
             KEY_BACKSPACE = 14
 
-            KEY_Q = 16
-            KEY_W = 17
-            KEY_E = 18
-            KEY_R = 19
-            KEY_T = 20
-            KEY_Y = 21
-            KEY_U = 22
-            KEY_I = 23
-            KEY_O = 24
-            KEY_P = 25
-
-            KEY_A = 30
-            KEY_S = 31
-            KEY_D = 32
-            KEY_F = 33
-            KEY_G = 34
-            KEY_H = 35
-            KEY_J = 36
-            KEY_K = 37
-            KEY_L = 38
-
-            KEY_Z = 44
-            KEY_X = 45
-            KEY_C = 46
-            KEY_V = 47
-            KEY_B = 48
-            KEY_N = 49
-            KEY_M = 50
-
-            key_to_song_map = {
-                KEY_T: 'https://open.spotify.com/track/2w7O4XCRoIJrwF1NqKL9TM?si=1a351eda12024804',
-                KEY_O: 'https://open.spotify.com/track/2eDdFHgqNJltzlvlZFVDWd?si=267f73b46faa4784'
-            }
-
             if typet == EV_KEY and value == 1:
                 # Keypress
                 print("%d pressed" % (code))
@@ -125,13 +137,13 @@ def main():
                 if code == KEY_DOWN:
                     print("Volume down")
                     living_room_speaker.set_relative_volume(-2)
-                elif code in key_to_song_map:
-                    song = key_to_song_map[code];
+                elif code in key_code_to_song_map:
+                    song = key_code_to_song_map[code];
                     print('Song %s' % song)
-                    living_room_speaker.clear_queue()
-                    living_room_sharelink = ShareLinkPlugin(living_room_speaker)
-                    living_room_sharelink.add_share_link_to_queue(song)
-                    living_room_speaker.play()
+#                    living_room_speaker.clear_queue()
+#                    living_room_sharelink = ShareLinkPlugin(living_room_speaker)
+#                    living_room_sharelink.add_share_link_to_queue(song)
+#                    living_room_speaker.play()
 
     print("Done.")
 
