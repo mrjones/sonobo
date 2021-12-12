@@ -7,6 +7,17 @@ import struct
 EVENT_DEVICE_PATH = '/dev/input/by-id/usb-Telink_Wireless_Receiver-if01-event-kbd'
 
 KEY_STRING_TO_CODE_MAP = {
+    '1': 2,
+    '2': 3,
+    '3': 4,
+    '4': 5,
+    '5': 6,
+    '6': 7,
+    '7': 8,
+    '8': 9,
+    '9': 10,
+    '0': 11,
+
     'Q': 16,
     'W': 17,
     'E': 18,
@@ -151,10 +162,10 @@ class Sonobo:
                             living_room_sharelink.add_share_link_to_queue(song.payload)
                             self.speaker.play()
                         elif song.kind == 'SONOS_PLAYLIST_NAME':
-                            self.speaker.clear_queue()
                             playlist = self.speaker.get_sonos_playlist_by_attr(
                                 'title', song.payload)
-                            self.speaker.add_uri_to_queue(playlist.resources[0].uri)
+                            self.speaker.clear_queue()
+                            self.speaker.add_to_queue(playlist);
                             self.speaker.play()
                         else:
                             print('unknown song kind: %s' % song.kind)
