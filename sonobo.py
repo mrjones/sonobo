@@ -37,12 +37,22 @@ KEY_STRING_TO_CODE_MAP = {
     'M': 50,
 }
 
+class SongInfo:
+    url: str
+    kind: str
+
+    def __init__(self, payload: str, kind: str):
+        self.payload = payload
+        self.kind = kind
+
+    def __repr__(self):
+        return '<SongInfo kind=%s payload=%s>' % (self.kind, self.payload)
 
 class Sonobo:
-    key_code_to_song_map = {}
+    key_code_to_song_map: dict[str, SongInfo] = {}
     speaker = None
 
-    def __init__(self, key_code_to_song_map, speaker):
+    def __init__(self, key_code_to_song_map: dict[str, SongInfo], speaker):
         self.key_code_to_song_map = key_code_to_song_map
         self.speaker = speaker
 
@@ -92,8 +102,12 @@ class Sonobo:
                 EV_KEY = 0x01
                 KEY_UP = 103
                 KEY_DOWN = 108
+                KEY_LEFT = 105
+                KEY_RIGHT = 106
                 KEY_SPACE = 57
                 KEY_BACKSPACE = 14
+
+                KEY_F12 = 88
 
                 if typet == EV_KEY and value == 1:
                     # Keypress
@@ -105,26 +119,45 @@ class Sonobo:
                         else:
                             print("Pause")
                             self.speaker.pause()
-                    if code == KEY_BACKSPACE:
+                    elif code == KEY_BACKSPACE:
                         print("Pause")
                         self.speaker.pause()
-                    if code == KEY_UP:
+                    elif code == KEY_UP:
                         current_vol = self.speaker.volume
                         print("Volume up (@%d)" % current_vol)
                         if self.speaker.volume > 15:
                             print("Volume capped")
                         else:
                             self.speaker.set_relative_volume(2)
-                    if code == KEY_DOWN:
+                    elif code == KEY_DOWN:
                         print("Volume down")
                         self.speaker.set_relative_volume(-2)
+                    elif code == KEY_RIGHT:
+                        print("Next")
+                        self.speaker.next()
+                    elif code == KEY_LEFT:
+                        print("Previous")
+                        self.speaker.previous()
+                    elif code == KEY_F12:
+                        print("Dumping Sonos Playlist IDs")
+                        for playlist in self.speaker.get_sonos_playlists():
+                            print("title=%s item_id=%s" % (playlist.title, playlist.item_id))
                     elif code in self.key_code_to_song_map:
-                        song = self.key_code_to_song_map[code];
+                        song: SongInfo = self.key_code_to_song_map[code];
                         print('Song %s' % song)
-                        self.speaker.clear_queue()
-                        living_room_sharelink = ShareLinkPlugin(self.speaker)
-                        living_room_sharelink.add_share_link_to_queue(song)
-                        self.speaker.play()
+                        if song.kind == 'SPOTIFY':
+                            self.speaker.clear_queue()
+                            living_room_sharelink = ShareLinkPlugin(self.speaker)
+                            living_room_sharelink.add_share_link_to_queue(song.payload)
+                            self.speaker.play()
+                        elif song.kind == 'SONOS_PLAYLIST_NAME':
+                            self.speaker.clear_queue()
+                            playlist = self.speaker.get_sonos_playlist_by_attr(
+                                'title', song.payload)
+                            self.speaker.add_uri_to_queue(playlist.resources[0].uri)
+                            self.speaker.play()
+                        else:
+                            print('unknown song kind: %s' % song.kind)
 
 
 def speaker_with_name(speakers, name):
@@ -133,13 +166,13 @@ def speaker_with_name(speakers, name):
             return speaker
     raise ValueError('Could not find speaker with name "%s"' % name)
 
-def read_key_code_to_song_map():
+def read_key_code_to_song_map() -> dict[str, SongInfo]:
     songmap_contents = open('songmap.json')
 
     key_strings_and_songs = json.load(songmap_contents)
     key_code_to_song_map = {}
     for song in key_strings_and_songs:
-        key_code_to_song_map[KEY_STRING_TO_CODE_MAP[song['key']]] = song['url']
+        key_code_to_song_map[KEY_STRING_TO_CODE_MAP[song['key']]] = SongInfo(song['payload'], song['kind'])
 
     return key_code_to_song_map
 
