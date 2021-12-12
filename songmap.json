@@ -1,17 +1,56 @@
 [
     {
-        "key": "T",
+        "debugName": "Atencion Atencion - Que Pasa Con La Music",
+        "key": "A",
         "kind": "SPOTIFY",
-        "payload": "https://open.spotify.com/track/2w7O4XCRoIJrwF1NqKL9TM?si=1a351eda12024804"
+        "payload": "https://open.spotify.com/album/6gTdDnREfXIGjEKqfsBWPi?si=9N6YIv0UTluLn01_ZkMyMg"
     },
     {
+        "debugName": "Twenty Trucks",
+        "key": "D",
+        "kind": "SPOTIFY",
+        "payload": "https://open.spotify.com/album/7bjzGhcdUmkqlgcNDboDkz?si=bzG06VVSTu24nZVkray9fg"
+    },
+    {
+        "debugName": "Frozen album",
+        "key": "F",
+        "kind": "SPOTIFY",
+        "payload": "https://open.spotify.com/album/5lTQwTqH8ItAw7zhuQiNvO?si=Dw1HKM6KQF-fK45CpYKW7w"
+    },
+    {
+        "debugName": "Luna Lanar",
+        "key": "L",
+        "kind": "SPOTIFY",
+        "payload": "https://open.spotify.com/track/09o80FKNG96beOe1CefrYw?si=e387d1b8c70c456d"
+    },
+    {
+        "debugName": "Moana album",
+        "key": "M",
+        "kind": "SONOS_PLAYLIST_NAME",
+        "payload": "Moana Orden Cronológico"
+    },
+    {
+        "debugName": "The Nutcracker",
+        "key": "N",
+        "kind": "SPOTIFY",
+        "payload": "https://open.spotify.com/album/54Awn36ryf55PkZyOR4iwQ?si=7WFl3EJrS368r0FS5aA8pQ"
+    },
+    {
+        "debugName": "Over The Hills & Far Away",
         "key": "O",
         "kind": "SPOTIFY",
         "payload": "https://open.spotify.com/track/2eDdFHgqNJltzlvlZFVDWd?si=267f73b46faa4784"
     },
     {
-        "key": "M",
-        "kind": "SONOS_PLAYLIST_NAME",
-        "payload": "Moana Orden Cronológico"
+        "debugName": "Senor Sapo",
+        "key": "S",
+        "kind": "SPOTIFY",
+        "payload": "https://open.spotify.com/album/4kXF33f9ZWq0WtSVJK3bnG?si=zOLZOsRzRuW5NjBK474oxA"
+    },
+    {
+        "debugName": "Take it all back",
+        "key": "T",
+        "kind": "SPOTIFY",
+        "payload": "https://open.spotify.com/track/2w7O4XCRoIJrwF1NqKL9TM?si=1a351eda12024804"
     }
 ]

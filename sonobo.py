@@ -1,3 +1,10 @@
+# TODO
+# - Webserver UI for editing songmap.json
+# - Logs to Webserver UI
+# - try-catch / error recovery
+# - Make it work if Living Room isn't coordinator
+# - Support multi-room joining
+
 import json
 import soco
 from soco.plugins.sharelink import ShareLinkPlugin
