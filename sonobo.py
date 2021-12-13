@@ -2,7 +2,6 @@
 # - Webserver UI for editing songmap.json
 # - Logs to Webserver UI
 # - try-catch / error recovery
-# - Make it work if Living Room isn't coordinator
 # - Support multi-room joining
 
 import json
@@ -74,6 +73,9 @@ class Sonobo:
         self.key_code_to_song_map = key_code_to_song_map
         self.speaker = speaker
 
+    def coordinator(self):
+        return self.speaker.group.coordinator
+
     def loop(self):
         print('opening "%s"' % (EVENT_DEVICE_PATH))
         with open(EVENT_DEVICE_PATH, 'rb') as f:
@@ -131,49 +133,49 @@ class Sonobo:
                     # Keypress
                     print("%d pressed" % (code))
                     if code == KEY_SPACE:
-                        if self.speaker.get_current_transport_info()['current_transport_state'] != 'PLAYING':
+                        if self.coordinator().get_current_transport_info()['current_transport_state'] != 'PLAYING':
                             print("Play")
-                            self.speaker.play()
+                            self.coordinator().play()
                         else:
                             print("Pause")
-                            self.speaker.pause()
+                            self.coordinator().pause()
                     elif code == KEY_BACKSPACE:
                         print("Pause")
-                        self.speaker.pause()
+                        self.coordinator().pause()
                     elif code == KEY_UP:
-                        current_vol = self.speaker.volume
+                        current_vol = self.coordinator().volume
                         print("Volume up (@%d)" % current_vol)
-                        if self.speaker.volume > 15:
+                        if self.coordinator().volume > 15:
                             print("Volume capped")
                         else:
-                            self.speaker.set_relative_volume(2)
+                            self.coordinator().set_relative_volume(2)
                     elif code == KEY_DOWN:
                         print("Volume down")
-                        self.speaker.set_relative_volume(-2)
+                        self.coordinator().set_relative_volume(-2)
                     elif code == KEY_RIGHT:
                         print("Next")
-                        self.speaker.next()
+                        self.coordinator().next()
                     elif code == KEY_LEFT:
                         print("Previous")
-                        self.speaker.previous()
+                        self.coordinator().previous()
                     elif code == KEY_F12:
                         print("Dumping Sonos Playlist IDs")
-                        for playlist in self.speaker.get_sonos_playlists():
+                        for playlist in self.coordinator().get_sonos_playlists():
                             print("title=%s item_id=%s" % (playlist.title, playlist.item_id))
                     elif code in self.key_code_to_song_map:
                         song: SongInfo = self.key_code_to_song_map[code];
                         print('Song %s' % song)
                         if song.kind == 'SPOTIFY':
-                            self.speaker.clear_queue()
-                            living_room_sharelink = ShareLinkPlugin(self.speaker)
+                            self.coordinator().clear_queue()
+                            living_room_sharelink = ShareLinkPlugin(self.coordinator())
                             living_room_sharelink.add_share_link_to_queue(song.payload)
-                            self.speaker.play()
+                            self.coordinator().play()
                         elif song.kind == 'SONOS_PLAYLIST_NAME':
-                            playlist = self.speaker.get_sonos_playlist_by_attr(
+                            playlist = self.coordinator().get_sonos_playlist_by_attr(
                                 'title', song.payload)
-                            self.speaker.clear_queue()
-                            self.speaker.add_to_queue(playlist);
-                            self.speaker.play()
+                            self.coordinator().clear_queue()
+                            self.coordinator().add_to_queue(playlist);
+                            self.coordinator().play()
                         else:
                             print('unknown song kind: %s' % song.kind)
 
