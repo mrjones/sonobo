@@ -42,6 +42,12 @@
         "payload": "https://open.spotify.com/track/2eDdFHgqNJltzlvlZFVDWd?si=267f73b46faa4784"
     },
     {
+        "debugName": "Rolie Polie Guacamole - Avocado Album",
+        "key": "R",
+        "kind": "SPOTIFY",
+        "payload": "https://open.spotify.com/album/548o11z8WtjhmKLFRzajvz?si=9qbwMDbQQVKlxxf9XfYdzg"
+    },
+    {
         "debugName": "Senor Sapo",
         "key": "S",
         "kind": "SPOTIFY",

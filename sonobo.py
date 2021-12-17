@@ -132,6 +132,9 @@ class Sonobo:
                 if typet == EV_KEY and value == 1:
                     # Keypress
                     print("%d pressed" % (code))
+                    if code == KEY_BACKSPACE:
+                        print("Pause")
+                        self.coordinator().pause();
                     if code == KEY_SPACE:
                         if self.coordinator().get_current_transport_info()['current_transport_state'] != 'PLAYING':
                             print("Play")
