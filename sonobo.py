@@ -4,11 +4,16 @@
 # - try-catch / error recovery
 # - Support multi-room joining
 
+import cgi
+import http.server
 import json
+import shutil
 import soco
-from soco.plugins.sharelink import ShareLinkPlugin
+import soco.plugins.sharelink
 import struct
-
+import threading
+import time
+import urllib.parse
 
 EVENT_DEVICE_PATH = '/dev/input/by-id/usb-Telink_Wireless_Receiver-if01-event-kbd'
 
@@ -66,12 +71,44 @@ class SongInfo:
         return '<SongInfo kind=%s payload=%s>' % (self.kind, self.payload)
 
 class Sonobo:
+    songmap_json = None
     key_code_to_song_map: dict[str, SongInfo] = {}
+    mutex = threading.Lock()
     speaker = None
 
-    def __init__(self, key_code_to_song_map: dict[str, SongInfo], speaker):
-        self.key_code_to_song_map = key_code_to_song_map
+    def __init__(self, songmap_json, speaker):
+        self.songmap_json = songmap_json
+        self.key_code_to_song_map = songmap_json_to_map(songmap_json)
         self.speaker = speaker
+
+    def get_songmap_json(self):
+        self.mutex.acquire()
+        try:
+            return self.songmap_json
+        finally:
+            self.mutex.release()
+
+    def song_for_code(self, code):
+        self.mutex.acquire()
+        try:
+            if code in self.key_code_to_song_map:
+                return self.key_code_to_song_map[code]
+            else:
+                return None
+        finally:
+            self.mutex.release()
+
+    def update_code_to_song_map(self, songmap_json):
+        code_to_song_map = songmap_json_to_map(songmap_json)
+        print("Received new code-to-song map with %d songs" % (len(code_to_song_map)))
+        for item in code_to_song_map.items():
+            print(item)
+        self.mutex.acquire()
+        try:
+            self.songmap_json = songmap_json
+            self.key_code_to_song_map = code_to_song_map
+        finally:
+            self.mutex.release()
 
     def coordinator(self):
         return self.speaker.group.coordinator
@@ -79,6 +116,7 @@ class Sonobo:
     def loop(self):
         print('opening "%s"' % (EVENT_DEVICE_PATH))
         with open(EVENT_DEVICE_PATH, 'rb') as f:
+            print('READY')
             while True:
                 # https://www.kernel.org/doc/Documentation/input/input.txt
                 #
@@ -129,6 +167,7 @@ class Sonobo:
 
                 KEY_F12 = 88
 
+
                 if typet == EV_KEY and value == 1:
                     # Keypress
                     print("%d pressed" % (code))
@@ -165,12 +204,11 @@ class Sonobo:
                         print("Dumping Sonos Playlist IDs")
                         for playlist in self.coordinator().get_sonos_playlists():
                             print("title=%s item_id=%s" % (playlist.title, playlist.item_id))
-                    elif code in self.key_code_to_song_map:
-                        song: SongInfo = self.key_code_to_song_map[code];
+                    elif song := self.song_for_code(code):
                         print('Song %s' % song)
                         if song.kind == 'SPOTIFY':
                             self.coordinator().clear_queue()
-                            living_room_sharelink = ShareLinkPlugin(self.coordinator())
+                            living_room_sharelink = soco.plugins.sharelink.ShareLinkPlugin(self.coordinator())
                             living_room_sharelink.add_share_link_to_queue(song.payload)
                             self.coordinator().play()
                         elif song.kind == 'SONOS_PLAYLIST_NAME':
@@ -189,21 +227,75 @@ def speaker_with_name(speakers, name):
             return speaker
     raise ValueError('Could not find speaker with name "%s"' % name)
 
-def read_key_code_to_song_map() -> dict[str, SongInfo]:
-    songmap_contents = open('songmap.json')
-
-    key_strings_and_songs = json.load(songmap_contents)
+def songmap_json_to_map(json_songmap_contents) -> dict[str, SongInfo]:
     key_code_to_song_map = {}
-    for song in key_strings_and_songs:
+    for song in json_songmap_contents:
         key_code_to_song_map[KEY_STRING_TO_CODE_MAP[song['key']]] = SongInfo(song['payload'], song['kind'])
-
     return key_code_to_song_map
+
+
+class SonoboHTTPHandler(http.server.BaseHTTPRequestHandler):
+    sonobo: Sonobo = None
+    json_songmap = None
+
+    def __init__(self, sonobo: Sonobo, *args):
+        self.sonobo = sonobo
+        http.server.BaseHTTPRequestHandler.__init__(self, *args)
+
+    def do_GET(self):
+        print('do_GET')
+        self.send_response(200)
+        self.send_header('Content-type','text/html')
+        self.end_headers()
+        self.wfile.write(("<html><body><form method=POST action=/updatesongmap><textarea name=songmap rows=50 cols=120>%s</textarea><input type=submit></form></body</html>" % json.dumps(self.sonobo.get_songmap_json(), indent=2)).encode('utf-8'))
+
+
+    def do_POST(self):
+        print('do_POST')
+        ctype, pdict = cgi.parse_header(self.headers['content-type'])
+        if ctype == 'multipart/form-data':
+            postvars = cgi.parse_multipart(self.rfile, pdict)
+            print("songmap: %s\n", postvars[b'songmap'])
+        elif ctype == 'application/x-www-form-urlencoded':
+            length = int(self.headers['content-length'])
+            postvars = urllib.parse.parse_qs(
+                    self.rfile.read(length),
+                    keep_blank_values=1)
+            print("songmap: %s\n", postvars[b'songmap'])
+        else:
+            self.send_response(500)
+            self.send_header('content-type','text/html')
+            self.end_headers()
+            self.wfile.write(("unknown content type %s" % ctype).encode('utf-8'))
+
+        print("smap: %s", postvars[b'songmap'][0])
+        songmap_json = json.loads(postvars[b'songmap'][0])
+        self.sonobo.update_code_to_song_map(songmap_json)
+#        song_map = songmap_json_to_map(songmap_json)
+
+        shutil.copyfile('songmap.json', 'songmap-%d.json' % time.time())
+
+        with open('songmap.tmp', 'w') as outfile:
+            json.dump(songmap_json, outfile, indent=2)
+
+        shutil.move('songmap.tmp', 'songmap.json')
+        self.json_songmap = songmap_json
+
+        self.send_response(200)
+        self.send_header('content-type','text/html')
+        self.end_headers()
+        self.wfile.write(b'OK')
+        # TODO: backup the old file and rename it
+        # TODO: error handling / sanity checking
+
 
 def main():
     print("discovering sonos...")
     speakers = soco.discover()
 
-    key_code_to_song_map = read_key_code_to_song_map();
+    raw_songmap_contents = open('songmap.json')
+    json_songmap_contents = json.load(raw_songmap_contents)
+    key_code_to_song_map = songmap_json_to_map(json_songmap_contents)
     print(key_code_to_song_map);
 
     for speaker in speakers:
@@ -211,7 +303,17 @@ def main():
 
     living_room_speaker = speaker_with_name(speakers, 'Living Room')
 
-    sonobo = Sonobo(key_code_to_song_map, living_room_speaker);
+    print("Creating sonobo")
+    sonobo = Sonobo(json_songmap_contents, living_room_speaker);
+
+    print("Creating HTTP server")
+    def hwrapper(*args):
+        SonoboHTTPHandler(sonobo, *args)
+    server = http.server.HTTPServer(('0.0.0.0', 8080), hwrapper)
+    server_thread = threading.Thread(target=server.serve_forever)
+    server_thread.daemon = True
+    server_thread.start()
+    print("Starting sonobo")
     sonobo.loop()
 
     print("Done.")
