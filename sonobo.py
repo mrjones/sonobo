@@ -272,64 +272,76 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
         super().__init__(*args)
 
     def do_GET(self) -> None:
-        print('do_GET')
-        self.send_response(200)
-        self.send_header('Content-type','text/html')
-        self.end_headers()
-        self.wfile.write(("<html><body><form method=POST action=/updatesongmap><textarea name=songmap rows=50 cols=120>%s</textarea><input type=submit></form></body</html>" % json.dumps(self.sonobo.get_songmap_json(), indent=2)).encode('utf-8'))
+        print('do_GET %s' % self.path)
+        if self.path == '/':
+            self.send_response(200)
+            self.send_header('Content-type','text/html')
+            self.end_headers()
+            self.wfile.write(("<html><body><form method=POST action=/updatesongmap><textarea name=songmap rows=50 cols=120>%s</textarea><input type=submit></form></body</html>" % json.dumps(self.sonobo.get_songmap_json(), indent=2)).encode('utf-8'))
+        else:
+            self.send_response(404)
+            self.end_headers()
+            self.wfile.write(b'')
+        print('do_GET done')
 
 
     def do_POST(self) -> None:
-        print('do_POST')
-        ctype: str
-        pdict_str: dict[str, str]
-        ctype, pdict_str = cgi.parse_header(self.headers['content-type'])
-        print(pdict_str);
+        print('do_POST %s' % self.path)
+        if self.path == '/updatesongmap':
+            ctype: str
+            pdict_str: dict[str, str]
+            ctype, pdict_str = cgi.parse_header(self.headers['content-type'])
+            print(pdict_str);
 
-        # Convert dict[str, str] to dict[str, bytes] to satisfy cgi.parse_multipart typechecking
-        pdict: dict[str, bytes] = {}
-        for pkey in pdict_str:
-            pdict[pkey] = bytes(pdict_str[pkey], 'utf-8')
+            # Convert dict[str, str] to dict[str, bytes] to satisfy cgi.parse_multipart typechecking
+            pdict: dict[str, bytes] = {}
+            for pkey in pdict_str:
+                pdict[pkey] = bytes(pdict_str[pkey], 'utf-8')
 
-        if ctype == 'multipart/form-data':
-            self.send_response(500)
-            self.send_header('content-type','text/html')
-            self.end_headers()
-            self.wfile.write('form-multipart not supported'.encode('utf-8'))
-            return
+            if ctype == 'multipart/form-data':
+                self.send_response(500)
+                self.send_header('content-type','text/html')
+                self.end_headers()
+                self.wfile.write('form-multipart not supported'.encode('utf-8'))
+                return
 #            postvars: dict[str, list[typing.Any]] = cgi.parse_multipart(self.rfile, pdict)
 #            print("songmap (multipart): %s\n" % postvars[b'songmap'])
 
-        if ctype != 'application/x-www-form-urlencoded':
-            self.send_response(500)
+            if ctype != 'application/x-www-form-urlencoded':
+                self.send_response(500)
+                self.send_header('content-type','text/html')
+                self.end_headers()
+                self.wfile.write(("unknown content type %s" % ctype).encode('utf-8'))
+                return
+
+            length: int = int(self.headers['content-length'])
+            body: bytes = self.rfile.read(length)
+            postvars: dict[str, list[str]] = urllib.parse.parse_qs(
+                body.decode('utf-8'),
+                keep_blank_values=True)
+
+            print("smap: %s", postvars['songmap'][0])
+            songmap_json: list[JsonSongT] = json.loads(postvars['songmap'][0])
+            self.sonobo.update_code_to_song_map(songmap_json)
+
+            shutil.copyfile('songmap.json', 'songmap-%d.json' % time.time())
+
+            with open('songmap.tmp', 'w') as outfile:
+                json.dump(songmap_json, outfile, indent=2)
+
+            shutil.move('songmap.tmp', 'songmap.json')
+            self.json_songmap = songmap_json
+
+            self.send_response(200)
             self.send_header('content-type','text/html')
             self.end_headers()
-            self.wfile.write(("unknown content type %s" % ctype).encode('utf-8'))
-            return
-
-        length: int = int(self.headers['content-length'])
-        body: bytes = self.rfile.read(length)
-        postvars: dict[str, list[str]] = urllib.parse.parse_qs(
-            body.decode('utf-8'),
-            keep_blank_values=True)
-
-        print("smap: %s", postvars['songmap'][0])
-        songmap_json: list[JsonSongT] = json.loads(postvars['songmap'][0])
-        self.sonobo.update_code_to_song_map(songmap_json)
-
-        shutil.copyfile('songmap.json', 'songmap-%d.json' % time.time())
-
-        with open('songmap.tmp', 'w') as outfile:
-            json.dump(songmap_json, outfile, indent=2)
-
-        shutil.move('songmap.tmp', 'songmap.json')
-        self.json_songmap = songmap_json
-
-        self.send_response(200)
-        self.send_header('content-type','text/html')
-        self.end_headers()
-        self.wfile.write(b'OK')
-        # TODO: error handling / sanity checking
+            self.wfile.write(b'OK')
+            # TODO: error handling / sanity checking
+        else:
+            self.send_response(404)
+            self.end_headers()
+            self.wfile.write(b'')
+        print('do_POST done')
 
 def main() -> None:
     print("discovering sonos...")
