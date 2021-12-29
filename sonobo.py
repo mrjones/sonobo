@@ -9,12 +9,15 @@ import datetime
 import http.server
 import json
 import shutil
-import soco
-import soco.plugins.sharelink
 import struct
 import threading
 import time
+import typing
+import typing_extensions
 import urllib.parse
+
+import soco # type: ignore
+import soco.plugins.sharelink # type: ignore
 
 EVENT_DEVICE_PATH = '/dev/input/by-id/usb-Telink_Wireless_Receiver-if01-event-kbd'
 
@@ -70,6 +73,8 @@ KEY_STRING_TO_CODE_MAP = {
     'M': 50,
 }
 
+JsonSongT = typing_extensions.TypedDict('JsonSongT', {'debugName': str, 'key': str, 'payload': str, 'kind': str})
+
 class SongInfo:
     url: str
     kind: str
@@ -78,12 +83,12 @@ class SongInfo:
         self.payload = payload
         self.kind = kind
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<SongInfo kind=%s payload=%s>' % (self.kind, self.payload)
 
 class Sonobo:
-    songmap_json = None
-    key_code_to_song_map: dict[str, SongInfo] = {}
+    songmap_json: list[JsonSongT] = []
+    key_code_to_song_map: dict[int, SongInfo] = {}
     mutex = threading.Lock()
     speaker = None
 
@@ -97,24 +102,23 @@ class Sonobo:
         self.last_key = -1
         self.last_key_timestamp = datetime.datetime.min
 
-    def get_songmap_json(self):
+    def get_songmap_json(self) -> list[JsonSongT]:
         self.mutex.acquire()
         try:
             return self.songmap_json
         finally:
             self.mutex.release()
 
-    def song_for_code(self, code):
+    def song_for_code(self, code: int) -> typing.Optional[SongInfo]:
         self.mutex.acquire()
         try:
             if code in self.key_code_to_song_map:
                 return self.key_code_to_song_map[code]
-            else:
-                return None
+            return None
         finally:
             self.mutex.release()
 
-    def update_code_to_song_map(self, songmap_json):
+    def update_code_to_song_map(self, songmap_json: list[JsonSongT]) -> None:
         code_to_song_map = songmap_json_to_map(songmap_json)
         print("Received new code-to-song map with %d songs" % (len(code_to_song_map)))
         for item in code_to_song_map.items():
@@ -129,7 +133,7 @@ class Sonobo:
     def coordinator(self):
         return self.speaker.group.coordinator
 
-    def get_keypress(self, f):
+    def get_keypress(self, keyboard_dev_file: typing.BinaryIO) -> typing.Tuple[int, int, int]:
         # https://www.kernel.org/doc/Documentation/input/input.txt
         #
         # Section5: Event interfaces
@@ -153,7 +157,7 @@ class Sonobo:
 
         struct_format = 'llHHi'  # long, long, short, short, int
         size = struct.calcsize(struct_format)
-        data = f.read(size)
+        data = keyboard_dev_file.read(size)
 
         _tv_sec, _tv_usec, typet, code, value = struct.unpack(struct_format, data)
 
@@ -172,12 +176,12 @@ class Sonobo:
 
         return (typet, code, value)
 
-    def dispatch(self, typet, code, value):
+    def dispatch(self, typet: int, code: int, value: int) -> None:
         if typet == EV_KEY and value == 1:
             # Keypress
             print("%d pressed" % (code))
             fast_repeat = False
-            if self.last_key == code:
+            if self.last_key == code and self.last_key_timestamp is not None:
                 delay = datetime.datetime.now() - self.last_key_timestamp
                 if delay.total_seconds() < 2.0:
                     fast_repeat = True
@@ -226,7 +230,7 @@ class Sonobo:
                         playlist = self.coordinator().get_sonos_playlist_by_attr(
                             'title', song.payload)
                         self.coordinator().clear_queue()
-                        self.coordinator().add_to_queue(playlist);
+                        self.coordinator().add_to_queue(playlist)
                         self.coordinator().play()
                     else:
                         print('unknown song kind: %s' % song.kind)
@@ -234,7 +238,7 @@ class Sonobo:
             self.last_key = code
             self.last_key_timestamp = datetime.datetime.now()
 
-    def loop(self):
+    def loop(self) -> None:
         print('opening "%s"' % (EVENT_DEVICE_PATH))
         with open(EVENT_DEVICE_PATH, 'rb') as f:
             print('READY')
@@ -254,7 +258,7 @@ def speaker_with_name(speakers, name):
             return speaker
     raise ValueError('Could not find speaker with name "%s"' % name)
 
-def songmap_json_to_map(json_songmap_contents) -> dict[str, SongInfo]:
+def songmap_json_to_map(json_songmap_contents: list[JsonSongT]) -> dict[int, SongInfo]:
     key_code_to_song_map = {}
     for song in json_songmap_contents:
         key_code_to_song_map[KEY_STRING_TO_CODE_MAP[song['key']]] = SongInfo(song['payload'], song['kind'])
@@ -262,16 +266,12 @@ def songmap_json_to_map(json_songmap_contents) -> dict[str, SongInfo]:
 
 
 class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
-    sonobo: Sonobo = None
-    json_songmap = None
-
     def __init__(self, sonobo: Sonobo, *args):
         self.sonobo = sonobo
-#        http.server.BaseHTTPRequestHandler.__init__(self, *args)
+        self.json_songmap: typing.Optional[list[JsonSongT]] = None
         super().__init__(*args)
 
-
-    def do_GET(self):
+    def do_GET(self) -> None:
         print('do_GET')
         self.send_response(200)
         self.send_header('Content-type','text/html')
@@ -279,28 +279,43 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(("<html><body><form method=POST action=/updatesongmap><textarea name=songmap rows=50 cols=120>%s</textarea><input type=submit></form></body</html>" % json.dumps(self.sonobo.get_songmap_json(), indent=2)).encode('utf-8'))
 
 
-    def do_POST(self):
+    def do_POST(self) -> None:
         print('do_POST')
-        ctype, pdict = cgi.parse_header(self.headers['content-type'])
+        ctype: str
+        pdict_str: dict[str, str]
+        ctype, pdict_str = cgi.parse_header(self.headers['content-type'])
+        print(pdict_str);
+
+        # Convert dict[str, str] to dict[str, bytes] to satisfy cgi.parse_multipart typechecking
+        pdict: dict[str, bytes] = {}
+        for pkey in pdict_str:
+            pdict[pkey] = bytes(pdict_str[pkey], 'utf-8')
+
         if ctype == 'multipart/form-data':
-            postvars = cgi.parse_multipart(self.rfile, pdict)
-            print("songmap: %s\n", postvars[b'songmap'])
-        elif ctype == 'application/x-www-form-urlencoded':
-            length = int(self.headers['content-length'])
-            postvars = urllib.parse.parse_qs(
-                    self.rfile.read(length),
-                    keep_blank_values=1)
-            print("songmap: %s\n", postvars[b'songmap'])
-        else:
+            self.send_response(500)
+            self.send_header('content-type','text/html')
+            self.end_headers()
+            self.wfile.write('form-multipart not supported'.encode('utf-8'))
+            return
+#            postvars: dict[str, list[typing.Any]] = cgi.parse_multipart(self.rfile, pdict)
+#            print("songmap (multipart): %s\n" % postvars[b'songmap'])
+
+        if ctype != 'application/x-www-form-urlencoded':
             self.send_response(500)
             self.send_header('content-type','text/html')
             self.end_headers()
             self.wfile.write(("unknown content type %s" % ctype).encode('utf-8'))
+            return
 
-        print("smap: %s", postvars[b'songmap'][0])
-        songmap_json = json.loads(postvars[b'songmap'][0])
+        length: int = int(self.headers['content-length'])
+        body: bytes = self.rfile.read(length)
+        postvars: dict[str, list[str]] = urllib.parse.parse_qs(
+            body.decode('utf-8'),
+            keep_blank_values=True)
+
+        print("smap: %s", postvars['songmap'][0])
+        songmap_json: list[JsonSongT] = json.loads(postvars['songmap'][0])
         self.sonobo.update_code_to_song_map(songmap_json)
-#        song_map = songmap_json_to_map(songmap_json)
 
         shutil.copyfile('songmap.json', 'songmap-%d.json' % time.time())
 
@@ -314,18 +329,16 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header('content-type','text/html')
         self.end_headers()
         self.wfile.write(b'OK')
-        # TODO: backup the old file and rename it
         # TODO: error handling / sanity checking
 
-
-def main():
+def main() -> None:
     print("discovering sonos...")
     speakers = soco.discover()
 
     raw_songmap_contents = open('songmap.json')
-    json_songmap_contents = json.load(raw_songmap_contents)
-    key_code_to_song_map = songmap_json_to_map(json_songmap_contents)
-    print(key_code_to_song_map);
+    json_songmap_contents: list[JsonSongT] = json.load(raw_songmap_contents)
+    key_code_to_song_map: dict[int, SongInfo]  = songmap_json_to_map(json_songmap_contents)
+    print(key_code_to_song_map)
 
     for speaker in speakers:
         print(" - %s" % (speaker.player_name))
@@ -333,7 +346,7 @@ def main():
     living_room_speaker = speaker_with_name(speakers, 'Living Room')
 
     print("Creating sonobo")
-    sonobo = Sonobo(json_songmap_contents, living_room_speaker);
+    sonobo = Sonobo(json_songmap_contents, living_room_speaker)
 
     print("Creating HTTP server")
     def hwrapper(*args):
