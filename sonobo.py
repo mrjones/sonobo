@@ -7,17 +7,23 @@
 import cgi
 import datetime
 import http.server
+import logging
+import logging.handlers
 import json
+import os
 import shutil
 import struct
+import sys
 import threading
 import time
 import typing
 import typing_extensions
-import urllib.parse
+#import urllib.parse
 
 import soco # type: ignore
 import soco.plugins.sharelink # type: ignore
+
+log = logging.getLogger("sonobo")
 
 EVENT_DEVICE_PATH = '/dev/input/by-id/usb-Telink_Wireless_Receiver-if01-event-kbd'
 
@@ -120,9 +126,9 @@ class Sonobo:
 
     def update_code_to_song_map(self, songmap_json: list[JsonSongT]) -> None:
         code_to_song_map = songmap_json_to_map(songmap_json)
-        print("Received new code-to-song map with %d songs" % (len(code_to_song_map)))
+        log.info("Received new code-to-song map with %d songs" % (len(code_to_song_map)))
         for item in code_to_song_map.items():
-            print(item)
+            log.info(item)
         self.mutex.acquire()
         try:
             self.songmap_json = songmap_json
@@ -179,7 +185,7 @@ class Sonobo:
     def dispatch(self, typet: int, code: int, value: int) -> None:
         if typet == EV_KEY and value == 1:
             # Keypress
-            print("%d pressed" % (code))
+            log.info("%d pressed" % (code))
             fast_repeat = False
             if self.last_key == code and self.last_key_timestamp is not None:
                 delay = datetime.datetime.now() - self.last_key_timestamp
@@ -188,39 +194,39 @@ class Sonobo:
 
             if code == KEY_SPACE:
                 if self.coordinator().get_current_transport_info()['current_transport_state'] != 'PLAYING':
-                    print("Play")
+                    log.info("Play")
                     self.coordinator().play()
                 else:
-                    print("Pause")
+                    log.info("Pause")
                     self.coordinator().pause()
             elif code == KEY_BACKSPACE:
-                print("Pause")
+                log.info("Pause")
                 self.coordinator().pause()
             elif code == KEY_UP:
                 current_vol = self.coordinator().volume
-                print("Volume up (@%d)" % current_vol)
+                log.info("Volume up (@%d)" % current_vol)
                 if self.coordinator().volume > 15:
-                    print("Volume capped")
+                    log.info("Volume capped")
                 else:
                     self.coordinator().set_relative_volume(2)
             elif code == KEY_DOWN:
-                print("Volume down")
+                log.info("Volume down")
                 self.coordinator().set_relative_volume(-2)
             elif code == KEY_RIGHT:
-                print("Next")
+                log.info("Next")
                 self.coordinator().next()
             elif code == KEY_LEFT:
-                print("Previous")
+                log.info("Previous")
                 self.coordinator().previous()
             elif code == KEY_F12:
-                print("=== Dumping Sonos Playlist IDs ===")
+                log.info("=== Dumping Sonos Playlist IDs ===")
                 for playlist in self.coordinator().get_sonos_playlists():
-                    print("title=%s item_id=%s" % (playlist.title, playlist.item_id))
+                    log.info("title=%s item_id=%s" % (playlist.title, playlist.item_id))
             elif song := self.song_for_code(code):
                 if fast_repeat:
-                    print("Ignoring fast-repeat of %d" % code)
+                    log.info("Ignoring fast-repeat of %d" % code)
                 else:
-                    print('Song %s' % song)
+                    log.info('Song %s' % song)
                     if song.kind == 'SPOTIFY':
                         self.coordinator().clear_queue()
                         living_room_sharelink = soco.plugins.sharelink.ShareLinkPlugin(self.coordinator())
@@ -233,24 +239,24 @@ class Sonobo:
                         self.coordinator().add_to_queue(playlist)
                         self.coordinator().play()
                     else:
-                        print('unknown song kind: %s' % song.kind)
+                        log.info('unknown song kind: %s' % song.kind)
 
             self.last_key = code
             self.last_key_timestamp = datetime.datetime.now()
 
     def loop(self) -> None:
-        print('opening "%s"' % (EVENT_DEVICE_PATH))
+        log.info('opening "%s"' % (EVENT_DEVICE_PATH))
         with open(EVENT_DEVICE_PATH, 'rb') as f:
-            print('READY')
+            log.info('READY')
             while True:
                 try:
                     typet, code, value = self.get_keypress(f)
                     self.dispatch(typet, code, value)
                 except Exception as e:
-                    print("===== EXCEPTION: ", datetime.datetime.now(), " =====")
-                    print(type(e))
-                    print(e.args)
-                    print(e)
+                    log.info("===== EXCEPTION: ", datetime.datetime.now(), " =====")
+                    log.info(type(e))
+                    log.info(e.args)
+                    log.info(e)
 
 def speaker_with_name(speakers, name):
     for speaker in speakers:
@@ -272,7 +278,7 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
         super().__init__(*args)
 
     def do_GET(self) -> None:
-        print('do_GET %s' % self.path)
+        log.info('do_GET %s' % self.path)
         if self.path == '/':
             self.send_response(200)
             self.send_header('Content-type','text/html')
@@ -282,16 +288,16 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
             self.wfile.write(b'')
-        print('do_GET done')
+        log.info('do_GET done')
 
 
     def do_POST(self) -> None:
-        print('do_POST %s' % self.path)
+        log.info('do_POST %s' % self.path)
         if self.path == '/updatesongmap':
             ctype: str
             pdict_str: dict[str, str]
             ctype, pdict_str = cgi.parse_header(self.headers['content-type'])
-            print(pdict_str);
+            log.info(pdict_str);
 
             # Convert dict[str, str] to dict[str, bytes] to satisfy cgi.parse_multipart typechecking
             pdict: dict[str, bytes] = {}
@@ -305,7 +311,7 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write('form-multipart not supported'.encode('utf-8'))
                 return
 #            postvars: dict[str, list[typing.Any]] = cgi.parse_multipart(self.rfile, pdict)
-#            print("songmap (multipart): %s\n" % postvars[b'songmap'])
+#            log.info("songmap (multipart): %s\n" % postvars[b'songmap'])
 
             if ctype != 'application/x-www-form-urlencoded':
                 self.send_response(500)
@@ -320,7 +326,7 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
                 body.decode('utf-8'),
                 keep_blank_values=True)
 
-            print("smap: %s", postvars['songmap'][0])
+            log.info("smap: %s", postvars['songmap'][0])
             songmap_json: list[JsonSongT] = json.loads(postvars['songmap'][0])
             self.sonobo.update_code_to_song_map(songmap_json)
 
@@ -341,36 +347,46 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
             self.wfile.write(b'')
-        print('do_POST done')
+        log.info('do_POST done')
 
 def main() -> None:
-    print("discovering sonos...")
+    file_handler = logging.handlers.WatchedFileHandler(
+        os.environ.get("LOGFILE", "sonobo.log"))
+    formatter = logging.Formatter(logging.BASIC_FORMAT)
+    file_handler.setFormatter(formatter)
+    stdout_handler = logging.StreamHandler(sys.stdout)
+
+    log.setLevel(os.environ.get("LOGLEVEL", "INFO"))
+    log.addHandler(stdout_handler)
+    log.addHandler(file_handler)
+
+    log.info("discovering sonos...")
     speakers = soco.discover()
 
     raw_songmap_contents = open('songmap.json')
     json_songmap_contents: list[JsonSongT] = json.load(raw_songmap_contents)
     key_code_to_song_map: dict[int, SongInfo]  = songmap_json_to_map(json_songmap_contents)
-    print(key_code_to_song_map)
+    log.info(key_code_to_song_map)
 
     for speaker in speakers:
-        print(" - %s" % (speaker.player_name))
+        log.info(" - %s" % (speaker.player_name))
 
     living_room_speaker = speaker_with_name(speakers, 'Living Room')
 
-    print("Creating sonobo")
+    log.info("Creating sonobo")
     sonobo = Sonobo(json_songmap_contents, living_room_speaker)
 
-    print("Creating HTTP server")
+    log.info("Creating HTTP server")
     def hwrapper(*args):
         SonoboHTTPHandler(sonobo, *args)
     server = http.server.HTTPServer(('0.0.0.0', 8080), hwrapper)
     server_thread = threading.Thread(target=server.serve_forever)
     server_thread.daemon = True
     server_thread.start()
-    print("Starting sonobo")
+    log.info("Starting sonobo")
     sonobo.loop()
 
-    print("Done.")
+    log.info("Done.")
 
 if __name__ == "__main__":
     main()
