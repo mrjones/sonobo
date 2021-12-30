@@ -1,8 +1,10 @@
 import json
 import logging
 import sys
+import time
 import unittest
 import unittest.mock
+import urllib.parse
 
 import sonobo
 
@@ -57,6 +59,14 @@ ONE_SONG_RAW_SONG_MAP = """[
 ]"""
 
 class TestSonobo(unittest.TestCase):
+    def enqueue_args_as_dict(self, call_args):
+        args_dict = {}
+        for key in call_args.args[0]:
+            k, v = key
+            args_dict[k] = v
+            print("ARGGG %s=%s" % (k, v))
+        return args_dict
+
     def test_play_from_song_map(self):
         speaker = FakeSpeaker()
         speaker.group.coordinator.clear_queue = unittest.mock.MagicMock()
@@ -116,6 +126,51 @@ class TestSonobo(unittest.TestCase):
 
         self.assertEqual(0, speaker.group.coordinator.volume,
                          "Min volume should be capped at 0")
+
+    def test_change_song_map(self):
+        speaker = FakeSpeaker()
+        original_songmap = json.loads(ONE_SONG_RAW_SONG_MAP)
+        s = sonobo.Sonobo(original_songmap, speaker)
+
+        speaker.group.coordinator.clear_queue = unittest.mock.MagicMock()
+        speaker.group.coordinator.avTransport.AddURIToQueue = unittest.mock.MagicMock()
+        speaker.group.coordinator.play = unittest.mock.MagicMock(wraps=speaker.group.coordinator.play)
+
+        s.dispatch(sonobo.EV_KEY, sonobo.KEY_STRING_TO_CODE_MAP['A'], 1)
+
+        speaker.group.coordinator.clear_queue.assert_called_once()
+        speaker.group.coordinator.avTransport.AddURIToQueue.assert_called_once()
+
+        self.assertEqual(
+            urllib.parse.quote_plus('spotify:track:payload').lower(),
+            self.enqueue_args_as_dict(speaker.group.coordinator.avTransport.AddURIToQueue.call_args)['EnqueuedURI'])
+        speaker.group.coordinator.play.assert_called_once()
+
+
+        NEW_SONG_MAP = """[
+   {
+        "debugName": "NEW SONG",
+        "key": "A",
+        "kind": "SPOTIFY",
+        "payload": "https://open.spotify.com/track/new_payload"
+    }
+]"""
+
+        time.sleep(3) # Avoid fast-repeat detection (TODO: use fake clock)
+
+        # Change the song map and assert the new url is enqueued when we press the same key:
+
+        s.update_code_to_song_map(json.loads(NEW_SONG_MAP))
+
+        speaker.group.coordinator.avTransport.AddURIToQueue.reset_mock()
+
+
+        s.dispatch(sonobo.EV_KEY, sonobo.KEY_STRING_TO_CODE_MAP['A'], 1)
+
+        speaker.group.coordinator.avTransport.AddURIToQueue.assert_called_once()
+        self.assertEqual(
+            urllib.parse.quote_plus('spotify:track:new_payload').lower(),
+            self.enqueue_args_as_dict(speaker.group.coordinator.avTransport.AddURIToQueue.call_args)['EnqueuedURI'])
 
 if __name__ == '__main__':
     unittest.main()

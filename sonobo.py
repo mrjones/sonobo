@@ -27,7 +27,7 @@ import soco.plugins.sharelink # type: ignore
 
 log = logging.getLogger("sonobo")
 
-MAX_VOLUME = 15
+MAX_VOLUME = 17
 
 EVENT_DEVICE_PATH = '/dev/input/by-id/usb-Telink_Wireless_Receiver-if01-event-kbd'
 
