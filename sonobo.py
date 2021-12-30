@@ -16,9 +16,10 @@ import struct
 import sys
 import threading
 import time
+import urllib.parse
+
 import typing
 import typing_extensions
-import urllib.parse
 
 import soco # type: ignore
 import soco.plugins.sharelink # type: ignore
@@ -221,10 +222,10 @@ class Sonobo:
             elif code == KEY_F12:
                 log.info("=== Dumping Sonos Playlist IDs ===")
                 for playlist in self.coordinator().get_sonos_playlists():
-                    log.info("title=%s item_id=%s" % (playlist.title, playlist.item_id))
+                    log.info("title=%s item_id=%s", playlist.title, playlist.item_id)
             elif song := self.song_for_code(code):
                 if fast_repeat:
-                    log.info("Ignoring fast-repeat of %d" % code)
+                    log.info("Ignoring fast-repeat of %d", code)
                 else:
                     log.info('Song %s', song)
                     if song.kind == 'SPOTIFY':
@@ -254,10 +255,6 @@ class Sonobo:
                     self.dispatch(typet, code, value)
                 except Exception as e:
                     log.exception(e)
-                    log.info("===== EXCEPTION: ", datetime.datetime.now(), " =====")
-                    log.info(type(e))
-                    log.info(e.args)
-                    log.info(e)
 
 def speaker_with_name(speakers, name):
     for speaker in speakers:
@@ -350,7 +347,7 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
         log.info('do_POST done')
 
 def main() -> None:
-    LIVE_LOG_FILENAME = os.environ.get("LOGFILE", "sonobo.log");
+    LIVE_LOG_FILENAME = os.environ.get("LOGFILE", "sonobo.log")
     PREV_LOG_FILENAME = LIVE_LOG_FILENAME + ".prev"
 
     os.rename(LIVE_LOG_FILENAME, PREV_LOG_FILENAME)
