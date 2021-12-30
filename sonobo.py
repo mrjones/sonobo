@@ -350,11 +350,13 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
         log.info('do_POST done')
 
 def main() -> None:
+    formatter = logging.Formatter("[%(levelname).1s%(asctime)s.%(msecs)03d] %(message)s", "%Y%m%d %H:%M:%S")
     file_handler = logging.handlers.WatchedFileHandler(
         os.environ.get("LOGFILE", "sonobo.log"))
-    formatter = logging.Formatter(logging.BASIC_FORMAT)
     file_handler.setFormatter(formatter)
+
     stdout_handler = logging.StreamHandler(sys.stdout)
+    stdout_handler.setFormatter(formatter)
 
     log.setLevel(os.environ.get("LOGLEVEL", "INFO"))
     log.addHandler(stdout_handler)
