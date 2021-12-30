@@ -103,7 +103,7 @@ class Sonobo:
     last_key = None
     last_key_timestamp = None
 
-    def __init__(self, songmap_json, speaker):
+    def __init__(self, songmap_json: list[JsonSongT], speaker):
         self.songmap_json = songmap_json
         self.key_code_to_song_map = songmap_json_to_map(songmap_json)
         self.speaker = speaker
