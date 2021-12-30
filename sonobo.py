@@ -355,11 +355,11 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
         log.info('do_POST done')
 
 def get_ip_address() -> str:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.connect(("8.8.8.8", 80))
-        address = sock.getsockname()[0]
-        sock.close()
-        return address
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.connect(("8.8.8.8", 80))
+    address = sock.getsockname()[0]
+    sock.close()
+    return address
 
 def main() -> None:
     LIVE_LOG_FILENAME = os.environ.get("LOGFILE", "sonobo.log")
