@@ -185,7 +185,7 @@ class Sonobo:
     def dispatch(self, typet: int, code: int, value: int) -> None:
         if typet == EV_KEY and value == 1:
             # Keypress
-            log.info("%d pressed" % (code))
+            log.info("%d pressed", code)
             fast_repeat = False
             if self.last_key == code and self.last_key_timestamp is not None:
                 delay = datetime.datetime.now() - self.last_key_timestamp
@@ -204,7 +204,7 @@ class Sonobo:
                 self.coordinator().pause()
             elif code == KEY_UP:
                 current_vol = self.coordinator().volume
-                log.info("Volume up (@%d)" % current_vol)
+                log.info("Volume up (was %d)", current_vol)
                 if self.coordinator().volume > 15:
                     log.info("Volume capped")
                 else:
@@ -226,7 +226,7 @@ class Sonobo:
                 if fast_repeat:
                     log.info("Ignoring fast-repeat of %d" % code)
                 else:
-                    log.info('Song %s' % song)
+                    log.info('Song %s', song)
                     if song.kind == 'SPOTIFY':
                         self.coordinator().clear_queue()
                         living_room_sharelink = soco.plugins.sharelink.ShareLinkPlugin(self.coordinator())
@@ -239,13 +239,13 @@ class Sonobo:
                         self.coordinator().add_to_queue(playlist)
                         self.coordinator().play()
                     else:
-                        log.info('unknown song kind: %s' % song.kind)
+                        log.info('unknown song kind: %s', song.kind)
 
             self.last_key = code
             self.last_key_timestamp = datetime.datetime.now()
 
     def loop(self) -> None:
-        log.info('opening "%s"' % (EVENT_DEVICE_PATH))
+        log.info('opening "%s"', EVENT_DEVICE_PATH)
         with open(EVENT_DEVICE_PATH, 'rb') as f:
             log.info('READY')
             while True:
@@ -253,6 +253,7 @@ class Sonobo:
                     typet, code, value = self.get_keypress(f)
                     self.dispatch(typet, code, value)
                 except Exception as e:
+                    log.exception(e)
                     log.info("===== EXCEPTION: ", datetime.datetime.now(), " =====")
                     log.info(type(e))
                     log.info(e.args)
@@ -278,7 +279,7 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
         super().__init__(*args)
 
     def do_GET(self) -> None:
-        log.info('do_GET %s' % self.path)
+        log.info('do_GET %s', self.path)
         if self.path == '/':
             self.send_response(200)
             self.send_header('Content-type','text/html')
@@ -292,7 +293,7 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
 
 
     def do_POST(self) -> None:
-        log.info('do_POST %s' % self.path)
+        log.info('do_POST %s', self.path)
         if self.path == '/updatesongmap':
             ctype: str
             pdict_str: dict[str, str]
@@ -374,7 +375,7 @@ def main() -> None:
     log.info(key_code_to_song_map)
 
     for speaker in speakers:
-        log.info(" - %s" % (speaker.player_name))
+        log.info(" - %s", speaker.player_name)
 
     living_room_speaker = speaker_with_name(speakers, 'Living Room')
 
@@ -391,7 +392,7 @@ def main() -> None:
     log.info("Starting sonobo")
     sonobo.loop()
 
-    log.info("Done.")
+    log.info("Exiting.")
 
 if __name__ == "__main__":
     main()
