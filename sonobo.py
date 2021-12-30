@@ -28,6 +28,7 @@ import soco.plugins.sharelink # type: ignore
 log = logging.getLogger("sonobo")
 
 MAX_VOLUME = 17
+FAST_REPEAT_THRESHOLD_SEC = 2.0
 
 EVENT_DEVICE_PATH = '/dev/input/by-id/usb-Telink_Wireless_Receiver-if01-event-kbd'
 
@@ -85,6 +86,10 @@ KEY_STRING_TO_CODE_MAP = {
 
 JsonSongT = typing_extensions.TypedDict('JsonSongT', {'debugName': str, 'key': str, 'payload': str, 'kind': str})
 
+class Clock:
+    def now_ts(self):
+        return datetime.datetime.now()
+
 class SongInfo:
     url: str
     kind: str
@@ -105,10 +110,11 @@ class Sonobo:
     last_key = None
     last_key_timestamp = None
 
-    def __init__(self, songmap_json: list[JsonSongT], speaker):
+    def __init__(self, songmap_json: list[JsonSongT], speaker, clock: Clock):
         self.songmap_json = songmap_json
         self.key_code_to_song_map = songmap_json_to_map(songmap_json)
         self.speaker = speaker
+        self.clock = clock
         self.last_key = -1
         self.last_key_timestamp = datetime.datetime.min
 
@@ -192,8 +198,8 @@ class Sonobo:
             log.info("%d pressed", code)
             fast_repeat = False
             if self.last_key == code and self.last_key_timestamp is not None:
-                delay = datetime.datetime.now() - self.last_key_timestamp
-                if delay.total_seconds() < 2.0:
+                delay = self.clock.now_ts() - self.last_key_timestamp
+                if delay < FAST_REPEAT_THRESHOLD_SEC:
                     fast_repeat = True
 
             if code == KEY_SPACE:
@@ -252,7 +258,7 @@ class Sonobo:
                         log.info('unknown song kind: %s', song.kind)
 
             self.last_key = code
-            self.last_key_timestamp = datetime.datetime.now()
+            self.last_key_timestamp = self.clock.now_ts()
 
     def loop(self) -> None:
         log.info('opening "%s"', EVENT_DEVICE_PATH)
@@ -400,7 +406,7 @@ def main() -> None:
     log.info("Song map (%s) has %d songs", 'songmap.json', len(key_code_to_song_map))
     log.debug(key_code_to_song_map)
 
-    sonobo = Sonobo(json_songmap_contents, living_room_speaker)
+    sonobo = Sonobo(json_songmap_contents, living_room_speaker, Clock())
 
     HTTP_PORT = 8080
     def hwrapper(*args):

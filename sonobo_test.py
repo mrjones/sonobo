@@ -58,7 +58,20 @@ ONE_SONG_RAW_SONG_MAP = """[
     }
 ]"""
 
+class FakeClock(sonobo.Clock):
+    def __init__(self):
+        self.current_timestamp = 0.0
+
+    def advance(self, delta):
+        self.current_timestamp = self.current_timestamp + delta
+
+    def now_ts(self):
+        return self.current_timestamp
+
 class TestSonobo(unittest.TestCase):
+    def setUp(self):
+        self.fake_clock = FakeClock()
+
     def enqueue_args_as_dict(self, call_args):
         args_dict = {}
         for key in call_args.args[0]:
@@ -74,13 +87,36 @@ class TestSonobo(unittest.TestCase):
         speaker.group.coordinator.play = unittest.mock.MagicMock(wraps=speaker.group.coordinator.play)
 
         songmap_json = json.loads(ONE_SONG_RAW_SONG_MAP)
-        s = sonobo.Sonobo(songmap_json, speaker)
+        s = sonobo.Sonobo(songmap_json, speaker, self.fake_clock)
 
         s.dispatch(sonobo.EV_KEY, sonobo.KEY_STRING_TO_CODE_MAP['A'], 1)
 
         speaker.group.coordinator.clear_queue.assert_called_once()
-        speaker.group.coordinator.avTransport.AddURIToQueue.assert_called_once()  ## XXX Get URL
+        speaker.group.coordinator.avTransport.AddURIToQueue.assert_called_once()
+        self.assertEqual(
+            urllib.parse.quote_plus('spotify:track:payload').lower(),
+            self.enqueue_args_as_dict(speaker.group.coordinator.avTransport.AddURIToQueue.call_args)['EnqueuedURI'])
         speaker.group.coordinator.play.assert_called_once()
+
+    def test_dedupe_fast_repeats(self):
+        speaker = FakeSpeaker()
+        speaker.group.coordinator.clear_queue = unittest.mock.MagicMock()
+        speaker.group.coordinator.avTransport.AddURIToQueue = unittest.mock.MagicMock()
+        speaker.group.coordinator.play = unittest.mock.MagicMock(wraps=speaker.group.coordinator.play)
+
+        songmap_json = json.loads(ONE_SONG_RAW_SONG_MAP)
+        s = sonobo.Sonobo(songmap_json, speaker, self.fake_clock)
+
+        # Press A twice, with half-second delay
+        s.dispatch(sonobo.EV_KEY, sonobo.KEY_STRING_TO_CODE_MAP['A'], 1)
+        self.fake_clock.advance(sonobo.FAST_REPEAT_THRESHOLD_SEC - 0.1)
+        s.dispatch(sonobo.EV_KEY, sonobo.KEY_STRING_TO_CODE_MAP['A'], 1)
+
+        self.assertEqual(1, speaker.group.coordinator.avTransport.AddURIToQueue.call_count)
+
+        self.fake_clock.advance(sonobo.FAST_REPEAT_THRESHOLD_SEC + 0.1)
+        s.dispatch(sonobo.EV_KEY, sonobo.KEY_STRING_TO_CODE_MAP['A'], 1)
+        self.assertEqual(2, speaker.group.coordinator.avTransport.AddURIToQueue.call_count)
 
     def test_play_pause(self):
         speaker = FakeSpeaker()
@@ -88,7 +124,7 @@ class TestSonobo(unittest.TestCase):
         speaker.group.coordinator.pause = unittest.mock.MagicMock(wraps=speaker.group.coordinator.pause)
 
         songmap_json = json.loads(ONE_SONG_RAW_SONG_MAP)
-        s = sonobo.Sonobo(songmap_json, speaker)
+        s = sonobo.Sonobo(songmap_json, speaker, self.fake_clock)
 
         s.dispatch(sonobo.EV_KEY, sonobo.KEY_SPACE, 1)
         speaker.group.coordinator.play.assert_called_once()
@@ -107,7 +143,7 @@ class TestSonobo(unittest.TestCase):
     def test_volume(self):
         speaker = FakeSpeaker()
         songmap_json = json.loads(ONE_SONG_RAW_SONG_MAP)
-        s = sonobo.Sonobo(songmap_json, speaker)
+        s = sonobo.Sonobo(songmap_json, speaker, self.fake_clock)
 
         for _ in range(25):
             s.dispatch(sonobo.EV_KEY, sonobo.KEY_UP, 1)
@@ -130,7 +166,7 @@ class TestSonobo(unittest.TestCase):
     def test_change_song_map(self):
         speaker = FakeSpeaker()
         original_songmap = json.loads(ONE_SONG_RAW_SONG_MAP)
-        s = sonobo.Sonobo(original_songmap, speaker)
+        s = sonobo.Sonobo(original_songmap, speaker, self.fake_clock)
 
         speaker.group.coordinator.clear_queue = unittest.mock.MagicMock()
         speaker.group.coordinator.avTransport.AddURIToQueue = unittest.mock.MagicMock()
@@ -156,7 +192,7 @@ class TestSonobo(unittest.TestCase):
     }
 ]"""
 
-        time.sleep(3) # Avoid fast-repeat detection (TODO: use fake clock)
+        self.fake_clock.advance(sonobo.FAST_REPEAT_THRESHOLD_SEC + 1.0)
 
         # Change the song map and assert the new url is enqueued when we press the same key:
 
