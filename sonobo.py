@@ -12,6 +12,7 @@ import logging.handlers
 import json
 import os
 import shutil
+import socket
 import struct
 import sys
 import threading
@@ -270,8 +271,9 @@ def songmap_json_to_map(json_songmap_contents: list[JsonSongT]) -> dict[int, Son
 
 
 class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
-    def __init__(self, sonobo: Sonobo, *args):
+    def __init__(self, sonobo: Sonobo, log_filename: str, *args):
         self.sonobo = sonobo
+        self.log_filename = log_filename
         self.json_songmap: typing.Optional[list[JsonSongT]] = None
         super().__init__(*args)
 
@@ -281,7 +283,13 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-type','text/html')
             self.end_headers()
-            self.wfile.write(("<html><body><form method=POST action=/updatesongmap><textarea name=songmap rows=50 cols=120>%s</textarea><input type=submit></form></body</html>" % json.dumps(self.sonobo.get_songmap_json(), indent=2)).encode('utf-8'))
+            self.wfile.write(("<html><body><div><a href=/log>Log</a></div><div><form method=POST action=/updatesongmap><textarea name=songmap rows=50 cols=120>%s</textarea></div><div><input type=submit></div></form></body</html>" % json.dumps(self.sonobo.get_songmap_json(), indent=2)).encode('utf-8'))
+        elif self.path == '/log':
+            with open(self.log_filename, 'rb') as log_file:
+                self.send_response(200)
+                self.send_header('Content-type', 'text/plain')
+                self.end_headers()
+                self.wfile.write(log_file.read())
         else:
             self.send_response(404)
             self.end_headers()
@@ -346,6 +354,13 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(b'')
         log.info('do_POST done')
 
+def get_ip_address() -> str:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.connect(("8.8.8.8", 80))
+        address = sock.getsockname()[0]
+        sock.close()
+        return address
+
 def main() -> None:
     LIVE_LOG_FILENAME = os.environ.get("LOGFILE", "sonobo.log")
     PREV_LOG_FILENAME = LIVE_LOG_FILENAME + ".prev"
@@ -365,28 +380,29 @@ def main() -> None:
 
     log.info("discovering sonos...")
     speakers = soco.discover()
+    for speaker in speakers:
+        log.info(" - %s", speaker.player_name)
+
+    log.info("Using 'Living Room'")
+    living_room_speaker = speaker_with_name(speakers, 'Living Room')
 
     raw_songmap_contents = open('songmap.json')
     json_songmap_contents: list[JsonSongT] = json.load(raw_songmap_contents)
     key_code_to_song_map: dict[int, SongInfo]  = songmap_json_to_map(json_songmap_contents)
-    log.info(key_code_to_song_map)
+    log.info("Song map (%s) has %d songs", 'songmap.json', len(key_code_to_song_map))
+    log.debug(key_code_to_song_map)
 
-    for speaker in speakers:
-        log.info(" - %s", speaker.player_name)
-
-    living_room_speaker = speaker_with_name(speakers, 'Living Room')
-
-    log.info("Creating sonobo")
     sonobo = Sonobo(json_songmap_contents, living_room_speaker)
 
-    log.info("Creating HTTP server")
+    HTTP_PORT = 8080
     def hwrapper(*args):
-        SonoboHTTPHandler(sonobo, *args)
-    server = http.server.HTTPServer(('0.0.0.0', 8080), hwrapper)
+        SonoboHTTPHandler(sonobo, LIVE_LOG_FILENAME, *args)
+    server = http.server.HTTPServer(('0.0.0.0', HTTP_PORT), hwrapper)
     server_thread = threading.Thread(target=server.serve_forever)
     server_thread.daemon = True
     server_thread.start()
-    log.info("Starting sonobo")
+    log.info("HTTPServer running: http://%s:%d", get_ip_address(), HTTP_PORT)
+    log.info("Sonobo initializing...")
     sonobo.loop()
 
     log.info("Exiting.")
