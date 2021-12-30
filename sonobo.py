@@ -28,7 +28,7 @@ import soco.plugins.sharelink # type: ignore
 log = logging.getLogger("sonobo")
 
 MAX_VOLUME = 17
-FAST_REPEAT_THRESHOLD_SEC = 2.0
+FAST_REPEAT_THRESHOLD_SEC = 4.0
 
 EVENT_DEVICE_PATH = '/dev/input/by-id/usb-Telink_Wireless_Receiver-if01-event-kbd'
 
@@ -88,7 +88,7 @@ JsonSongT = typing_extensions.TypedDict('JsonSongT', {'debugName': str, 'key': s
 
 class Clock:
     def now_ts(self):
-        return datetime.datetime.now()
+        return time.time_ns() / 1000000
 
 class SongInfo:
     url: str
@@ -199,6 +199,7 @@ class Sonobo:
             fast_repeat = False
             if self.last_key == code and self.last_key_timestamp is not None:
                 delay = self.clock.now_ts() - self.last_key_timestamp
+                # TODO: Use the timestamp of the keypress instead of now_ts
                 if delay < FAST_REPEAT_THRESHOLD_SEC:
                     fast_repeat = True
 
