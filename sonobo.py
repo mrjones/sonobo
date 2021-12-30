@@ -27,6 +27,8 @@ import soco.plugins.sharelink # type: ignore
 
 log = logging.getLogger("sonobo")
 
+MAX_VOLUME = 15
+
 EVENT_DEVICE_PATH = '/dev/input/by-id/usb-Telink_Wireless_Receiver-if01-event-kbd'
 
 EV_KEY = 0x01
@@ -206,14 +208,20 @@ class Sonobo:
                 self.coordinator().pause()
             elif code == KEY_UP:
                 current_vol = self.coordinator().volume
-                log.info("Volume up (was %d)", current_vol)
-                if self.coordinator().volume > 15:
-                    log.info("Volume capped")
+                if current_vol >= MAX_VOLUME:
+                    log.info("Volume-up capped at %d" % current_vol)
                 else:
-                    self.coordinator().set_relative_volume(2)
+                    delta = min(2, MAX_VOLUME - current_vol)
+                    log.info("Volume up (%d + %d)", current_vol, delta)
+                    self.coordinator().set_relative_volume(delta)
             elif code == KEY_DOWN:
-                log.info("Volume down")
-                self.coordinator().set_relative_volume(-2)
+                current_vol = self.coordinator().volume
+                if current_vol <= 0:
+                    log.info("Volume-down capped at 0")
+                else:
+                    delta = min(2, current_vol)
+                    log.info("Volume down (%d - %d)", current_vol, delta)
+                    self.coordinator().set_relative_volume(-1 * delta)
             elif code == KEY_RIGHT:
                 log.info("Next")
                 self.coordinator().next()
