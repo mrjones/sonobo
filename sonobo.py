@@ -18,7 +18,7 @@ import threading
 import time
 import typing
 import typing_extensions
-#import urllib.parse
+import urllib.parse
 
 import soco # type: ignore
 import soco.plugins.sharelink # type: ignore
@@ -126,9 +126,9 @@ class Sonobo:
 
     def update_code_to_song_map(self, songmap_json: list[JsonSongT]) -> None:
         code_to_song_map = songmap_json_to_map(songmap_json)
-        log.info("Received new code-to-song map with %d songs" % (len(code_to_song_map)))
+        log.info("Received new code-to-song map with %d songs", (len(code_to_song_map)))
         for item in code_to_song_map.items():
-            log.info(item)
+            log.debug(item)
         self.mutex.acquire()
         try:
             self.songmap_json = songmap_json
@@ -297,7 +297,6 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
             ctype: str
             pdict_str: dict[str, str]
             ctype, pdict_str = cgi.parse_header(self.headers['content-type'])
-            log.info(pdict_str);
 
             # Convert dict[str, str] to dict[str, bytes] to satisfy cgi.parse_multipart typechecking
             pdict: dict[str, bytes] = {}
@@ -326,7 +325,7 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
                 body.decode('utf-8'),
                 keep_blank_values=True)
 
-            log.info("smap: %s", postvars['songmap'][0])
+            log.debug("smap: %s", postvars['songmap'][0])
             songmap_json: list[JsonSongT] = json.loads(postvars['songmap'][0])
             self.sonobo.update_code_to_song_map(songmap_json)
 
@@ -350,9 +349,13 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
         log.info('do_POST done')
 
 def main() -> None:
+    LIVE_LOG_FILENAME = os.environ.get("LOGFILE", "sonobo.log");
+    PREV_LOG_FILENAME = LIVE_LOG_FILENAME + ".prev"
+
+    os.rename(LIVE_LOG_FILENAME, PREV_LOG_FILENAME)
+
     formatter = logging.Formatter("[%(levelname).1s%(asctime)s.%(msecs)03d] %(message)s", "%Y%m%d %H:%M:%S")
-    file_handler = logging.handlers.WatchedFileHandler(
-        os.environ.get("LOGFILE", "sonobo.log"))
+    file_handler = logging.handlers.WatchedFileHandler(LIVE_LOG_FILENAME)
     file_handler.setFormatter(formatter)
 
     stdout_handler = logging.StreamHandler(sys.stdout)
