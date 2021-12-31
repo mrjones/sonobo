@@ -1,7 +1,6 @@
 import json
 import logging
 import sys
-import time
 import unittest
 import unittest.mock
 import urllib.parse
