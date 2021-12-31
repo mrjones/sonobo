@@ -216,7 +216,7 @@ class Sonobo:
             elif code == KEY_UP:
                 current_vol = self.coordinator().volume
                 if current_vol >= MAX_VOLUME:
-                    log.info("Volume-up capped at %d" % current_vol)
+                    log.info("Volume-up capped at %d", current_vol)
                 else:
                     delta = min(2, MAX_VOLUME - current_vol)
                     log.info("Volume up (%d + %d)", current_vol, delta)
