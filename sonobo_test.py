@@ -88,7 +88,7 @@ class TestSonobo(unittest.TestCase):
         songmap_json = json.loads(ONE_SONG_RAW_SONG_MAP)
         s = sonobo.Sonobo(songmap_json, speaker, self.fake_clock)
 
-        s.dispatch(sonobo.EV_KEY, sonobo.KEY_STRING_TO_CODE_MAP['A'], 1)
+        s.dispatch(sonobo.EV_KEY, sonobo.KEY_STRING_TO_CODE_MAP['A'], 1, 0.0)
 
         speaker.group.coordinator.clear_queue.assert_called_once()
         speaker.group.coordinator.avTransport.AddURIToQueue.assert_called_once()
@@ -106,15 +106,15 @@ class TestSonobo(unittest.TestCase):
         songmap_json = json.loads(ONE_SONG_RAW_SONG_MAP)
         s = sonobo.Sonobo(songmap_json, speaker, self.fake_clock)
 
-        # Press A twice, with half-second delay
-        s.dispatch(sonobo.EV_KEY, sonobo.KEY_STRING_TO_CODE_MAP['A'], 1)
-        self.fake_clock.advance(sonobo.FAST_REPEAT_THRESHOLD_SEC - 0.1)
-        s.dispatch(sonobo.EV_KEY, sonobo.KEY_STRING_TO_CODE_MAP['A'], 1)
+        # Press A twice, with a delay just under the threshold
+        s.dispatch(sonobo.EV_KEY, sonobo.KEY_STRING_TO_CODE_MAP['A'], 1, 0.0)
+        self.fake_clock.advance(sonobo.FAST_REPEAT_THRESHOLD_SEC + 1.0)
+        s.dispatch(sonobo.EV_KEY, sonobo.KEY_STRING_TO_CODE_MAP['A'], 1, 3.9)
 
         self.assertEqual(1, speaker.group.coordinator.avTransport.AddURIToQueue.call_count)
 
-        self.fake_clock.advance(sonobo.FAST_REPEAT_THRESHOLD_SEC + 0.1)
-        s.dispatch(sonobo.EV_KEY, sonobo.KEY_STRING_TO_CODE_MAP['A'], 1)
+        self.fake_clock.advance(sonobo.FAST_REPEAT_THRESHOLD_SEC - 1.0)
+        s.dispatch(sonobo.EV_KEY, sonobo.KEY_STRING_TO_CODE_MAP['A'], 1, 8.0)
         self.assertEqual(2, speaker.group.coordinator.avTransport.AddURIToQueue.call_count)
 
     def test_play_pause(self):
@@ -125,17 +125,17 @@ class TestSonobo(unittest.TestCase):
         songmap_json = json.loads(ONE_SONG_RAW_SONG_MAP)
         s = sonobo.Sonobo(songmap_json, speaker, self.fake_clock)
 
-        s.dispatch(sonobo.EV_KEY, sonobo.KEY_SPACE, 1)
+        s.dispatch(sonobo.EV_KEY, sonobo.KEY_SPACE, 1, 0.0)
         speaker.group.coordinator.play.assert_called_once()
         speaker.group.coordinator.pause.assert_not_called()
 
-        s.dispatch(sonobo.EV_KEY, sonobo.KEY_SPACE, 1)
+        s.dispatch(sonobo.EV_KEY, sonobo.KEY_SPACE, 1, 0.0)
         speaker.group.coordinator.pause.assert_called_once()
 
         speaker.group.coordinator.play.reset_mock()
 
         speaker.group.coordinator.play.assert_not_called()
-        s.dispatch(sonobo.EV_KEY, sonobo.KEY_SPACE, 1)
+        s.dispatch(sonobo.EV_KEY, sonobo.KEY_SPACE, 1, 0.0)
         speaker.group.coordinator.play.assert_called_once()
         speaker.group.coordinator.pause.assert_called_once()
 
@@ -145,19 +145,19 @@ class TestSonobo(unittest.TestCase):
         s = sonobo.Sonobo(songmap_json, speaker, self.fake_clock)
 
         for _ in range(25):
-            s.dispatch(sonobo.EV_KEY, sonobo.KEY_UP, 1)
+            s.dispatch(sonobo.EV_KEY, sonobo.KEY_UP, 1, 0.0)
 
         self.assertEqual(sonobo.MAX_VOLUME, speaker.group.coordinator.volume,
                          "Volume should be capped at MAX_VOLUME")
 
-        s.dispatch(sonobo.EV_KEY, sonobo.KEY_DOWN, 1)
+        s.dispatch(sonobo.EV_KEY, sonobo.KEY_DOWN, 1, 0.0)
 
         self.assertTrue(speaker.group.coordinator.volume < sonobo.MAX_VOLUME,
                         "Volume (%d) should be lower than MAX_VOLUME (%s)"
                         % (speaker.group.coordinator.volume, sonobo.MAX_VOLUME))
 
         for _ in range(25):
-            s.dispatch(sonobo.EV_KEY, sonobo.KEY_DOWN, 1)
+            s.dispatch(sonobo.EV_KEY, sonobo.KEY_DOWN, 1, 0.0)
 
         self.assertEqual(0, speaker.group.coordinator.volume,
                          "Min volume should be capped at 0")
@@ -171,7 +171,7 @@ class TestSonobo(unittest.TestCase):
         speaker.group.coordinator.avTransport.AddURIToQueue = unittest.mock.MagicMock()
         speaker.group.coordinator.play = unittest.mock.MagicMock(wraps=speaker.group.coordinator.play)
 
-        s.dispatch(sonobo.EV_KEY, sonobo.KEY_STRING_TO_CODE_MAP['A'], 1)
+        s.dispatch(sonobo.EV_KEY, sonobo.KEY_STRING_TO_CODE_MAP['A'], 1, 0.0)
 
         speaker.group.coordinator.clear_queue.assert_called_once()
         speaker.group.coordinator.avTransport.AddURIToQueue.assert_called_once()
@@ -199,8 +199,7 @@ class TestSonobo(unittest.TestCase):
 
         speaker.group.coordinator.avTransport.AddURIToQueue.reset_mock()
 
-
-        s.dispatch(sonobo.EV_KEY, sonobo.KEY_STRING_TO_CODE_MAP['A'], 1)
+        s.dispatch(sonobo.EV_KEY, sonobo.KEY_STRING_TO_CODE_MAP['A'], 1, 5.0)
 
         speaker.group.coordinator.avTransport.AddURIToQueue.assert_called_once()
         self.assertEqual(

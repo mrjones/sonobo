@@ -116,7 +116,7 @@ class Sonobo:
         self.speaker = speaker
         self.clock = clock
         self.last_key = -1
-        self.last_key_timestamp = datetime.datetime.min
+        self.last_key_timestamp = 0.0 # seconds
 
     def get_songmap_json(self) -> list[JsonSongT]:
         self.mutex.acquire()
@@ -149,7 +149,7 @@ class Sonobo:
     def coordinator(self):
         return self.speaker.group.coordinator
 
-    def get_keypress(self, keyboard_dev_file: typing.BinaryIO) -> typing.Tuple[int, int, int]:
+    def get_keypress(self, keyboard_dev_file: typing.BinaryIO) -> typing.Tuple[int, int, int, float]:
         # https://www.kernel.org/doc/Documentation/input/input.txt
         #
         # Section5: Event interfaces
@@ -176,6 +176,7 @@ class Sonobo:
         data = keyboard_dev_file.read(size)
 
         _tv_sec, _tv_usec, typet, code, value = struct.unpack(struct_format, data)
+        timestamp = (_tv_sec * 1000000 + _tv_usec)/1000000
 
         # 'time' is the timestamp, it returns the time at which the event happened.
         # Type is for example EV_REL for relative moment, EV_KEY for a keypress or
@@ -190,16 +191,16 @@ class Sonobo:
         #
         # https://github.com/torvalds/linux/blob/master/include/uapi/linux/input-event-codes
 
-        return (typet, code, value)
+        return (typet, code, value, timestamp)
 
-    def dispatch(self, typet: int, code: int, value: int) -> None:
+    def dispatch(self, typet: int, code: int, value: int, timestamp: float) -> None:
         if typet == EV_KEY and value == 1:
             # Keypress
             log.info("%d pressed", code)
             fast_repeat = False
             if self.last_key == code and self.last_key_timestamp is not None:
-                delay = self.clock.now_ts() - self.last_key_timestamp
-                # TODO: Use the timestamp of the keypress instead of now_ts
+                delay = timestamp - self.last_key_timestamp
+                log.info("Delay between repeat keypresses: %s", "{:10.4f}".format(delay))
                 if delay < FAST_REPEAT_THRESHOLD_SEC:
                     fast_repeat = True
 
@@ -259,7 +260,7 @@ class Sonobo:
                         log.info('unknown song kind: %s', song.kind)
 
             self.last_key = code
-            self.last_key_timestamp = self.clock.now_ts()
+            self.last_key_timestamp = timestamp
 
     def loop(self) -> None:
         log.info('opening "%s"', EVENT_DEVICE_PATH)
@@ -267,8 +268,7 @@ class Sonobo:
             log.info('READY')
             while True:
                 try:
-                    typet, code, value = self.get_keypress(f)
-                    self.dispatch(typet, code, value)
+                    self.dispatch(*self.get_keypress(f))
                 except Exception as e:
                     log.exception(e)
 
