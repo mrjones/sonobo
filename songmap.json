@@ -18,10 +18,22 @@
     "payload": "https://open.spotify.com/album/7bjzGhcdUmkqlgcNDboDkz?si=bzG06VVSTu24nZVkray9fg"
   },
   {
+    "debugName": "Rollie polie guacamole - RPG",
+    "key": "E",
+    "kind": "SPOTIFY",
+    "payload": "https://open.spotify.com/album/2GzcCpolBQO3Q38A8hruDv?si=fFZNoqmBQVmjhLvGrzvWgA"
+  },
+  {
     "debugName": "Frozen album",
     "key": "F",
     "kind": "SPOTIFY",
     "payload": "https://open.spotify.com/album/5lTQwTqH8ItAw7zhuQiNvO?si=Dw1HKM6KQF-fK45CpYKW7w"
+  },
+  {
+    "debugName": "50k Pounds",
+    "key": "G",
+    "kind": "SPOTIFY",
+    "payload": "https://open.spotify.com/track/1jXky83x0PR5nrRbAleiJC?si=kEkQ_wdjQaibxPfWFcgc7Q"
   },
   {
     "debugName": "Luna Lanar",
