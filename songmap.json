@@ -36,6 +36,12 @@
     "payload": "https://open.spotify.com/track/1jXky83x0PR5nrRbAleiJC?si=kEkQ_wdjQaibxPfWFcgc7Q"
   },
   {
+    "debugName": "Jonas Brothers Playlist",
+    "key": "H",
+    "kind": "SPOTIFY",
+    "payload": "https://open.spotify.com/playlist/39cYiTt5bWQRsyDWL9zCLQ?si=555bdfb57677448a"
+  },
+  {
     "debugName": "Luna Lanar",
     "key": "L",
     "kind": "SPOTIFY",
