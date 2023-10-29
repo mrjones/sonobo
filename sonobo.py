@@ -380,7 +380,8 @@ def main() -> None:
     LIVE_LOG_FILENAME = os.environ.get("LOGFILE", "sonobo.log")
     PREV_LOG_FILENAME = LIVE_LOG_FILENAME + ".prev"
 
-    os.rename(LIVE_LOG_FILENAME, PREV_LOG_FILENAME)
+    if os.path.exists(LIVE_LOG_FILENAME):
+        os.rename(LIVE_LOG_FILENAME, PREV_LOG_FILENAME)
 
     formatter = logging.Formatter("[%(levelname).1s%(asctime)s.%(msecs)03d] %(message)s", "%Y%m%d %H:%M:%S")
     file_handler = logging.handlers.WatchedFileHandler(LIVE_LOG_FILENAME)
