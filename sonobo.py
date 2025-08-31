@@ -379,25 +379,25 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
     <div class="nav">
         <form style="display: inline;" method="get" action="/log">
             <input type="hidden" name="page" value="1">
-            <button type="submit" {'disabled' if page <= 1 else ''}>⏮️ First</button>
+            <button type="submit" {'disabled' if page <= 1 else ''}>First</button>
         </form>
         <form style="display: inline;" method="get" action="/log">
             <input type="hidden" name="page" value="{page - 1}">
-            <button type="submit" {'disabled' if page <= 1 else ''}>⬅️ Previous</button>
+            <button type="submit" {'disabled' if page <= 1 else ''}>Previous</button>
         </form>
         <form style="display: inline;" method="get" action="/log">
             <input type="hidden" name="page" value="{page + 1}">
-            <button type="submit" {'disabled' if page >= total_pages else ''}>➡️ Next</button>
+            <button type="submit" {'disabled' if page >= total_pages else ''}>Next</button>
         </form>
         <form style="display: inline;" method="get" action="/log">
             <input type="hidden" name="page" value="{total_pages}">
-            <button type="submit" {'disabled' if page >= total_pages else ''}>⏭️ Last</button>
+            <button type="submit" {'disabled' if page >= total_pages else ''}>Last</button>
         </form>
         <form style="display: inline;" method="get" action="/log">
             Page: <input type="number" name="page" value="{page}" min="1" max="{total_pages}" style="width: 60px;">
             <button type="submit">Go</button>
         </form>
-        <a href="/" style="margin-left: 20px;">⬅️ Back to Home</a>
+        <a href="/" style="margin-left: 20px;">Back to Home</a>
     </div>
     <div class="log-content">{log_content.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')}</div>
 </body>
