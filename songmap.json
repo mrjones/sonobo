@@ -6,10 +6,22 @@
     "payload": "https://open.spotify.com/track/0Nrw0vKim2z4dph1jsxvye?si=b40bb88921054615"
   },
   {
+    "debugName": "Eurovision 2024",
+    "key": "4",
+    "kind": "SPOTIFY",
+    "payload": "https://open.spotify.com/playlist/37i9dQZF1DWVCKO3xAlT1Q?si=d5f8e79068fa4501"
+  },
+  {
     "debugName": "Atencion Atencion - Que Pasa Con La Music",
     "key": "A",
     "kind": "SPOTIFY",
     "payload": "https://open.spotify.com/album/6gTdDnREfXIGjEKqfsBWPi?si=9N6YIv0UTluLn01_ZkMyMg"
+  },
+  {
+    "debugName": "Crazy Train",
+    "key": "C",
+    "kind": "SPOTIFY",
+    "payload": "https://open.spotify.com/track/7ACxUo21jtTHzy7ZEV56vU?si=GQ_3Yy8vTk2Spojhe1Aexg"
   },
   {
     "debugName": "Twenty Trucks",
@@ -42,6 +54,12 @@
     "payload": "https://open.spotify.com/playlist/39cYiTt5bWQRsyDWL9zCLQ?si=555bdfb57677448a"
   },
   {
+    "debugName": "Jenna Raine - It Is What It Is",
+    "key": "I",
+    "kind": "SPOTIFY",
+    "payload": "https://open.spotify.com/track/1558CwDaXSZiCplq9AaH0q?si=27fdc2509b034985"
+  },
+  {
     "debugName": "Luna Lanar",
     "key": "L",
     "kind": "SPOTIFY",
@@ -66,16 +84,22 @@
     "payload": "https://open.spotify.com/album/54Awn36ryf55PkZyOR4iwQ?si=7WFl3EJrS368r0FS5aA8pQ"
   },
   {
-    "debugName": "Rolie Polie Guacamole - Avocado Album",
-    "key": "R",
-    "kind": "SPOTIFY",
-    "payload": "https://open.spotify.com/album/548o11z8WtjhmKLFRzajvz?si=9qbwMDbQQVKlxxf9XfYdzg"
-  },
-  {
     "debugName": "Over The Hills & Far Away",
     "key": "O",
     "kind": "SPOTIFY",
     "payload": "https://open.spotify.com/track/2eDdFHgqNJltzlvlZFVDWd?si=267f73b46faa4784"
+  },
+  {
+    "debugName": "She Queen of the Kings",
+    "key": "Q",
+    "kind": "SPOTIFY",
+    "payload": "https://open.spotify.com/track/14LdhxElpZS0rKVV4nxtdA?si=FZCmOuutTkiLVEcGF0518Q"
+  },
+  {
+    "debugName": "Rolie Polie Guacamole - Avocado Album",
+    "key": "R",
+    "kind": "SPOTIFY",
+    "payload": "https://open.spotify.com/album/548o11z8WtjhmKLFRzajvz?si=9qbwMDbQQVKlxxf9XfYdzg"
   },
   {
     "debugName": "Senor Sapo",
@@ -88,5 +112,23 @@
     "key": "T",
     "kind": "SPOTIFY",
     "payload": "https://open.spotify.com/track/2w7O4XCRoIJrwF1NqKL9TM?si=1a351eda12024804"
+  },
+  {
+    "debugName": "Taylor Swift Playlist",
+    "key": "W",
+    "kind": "SPOTIFY",
+    "payload": "https://open.spotify.com/playlist/2R0GOwhvF5mTjEGbOGkkIR?si=66faW-tyQ3-D3lT1J0_MTQ&pi=u-Tun6uaO5TSmg"
+  },
+  {
+    "debugName": "Numa Numa",
+    "key": "V",
+    "kind": "SPOTIFY",
+    "payload": "https://open.spotify.com/track/4nnHlGaBwJHb1rBetqj0Yl?si=KEZL0dETT1qTeEc9JFPsWw"
+  },
+  {
+    "debugName": "Take My Heart Away",
+    "key": "Y",
+    "kind": "SPOTIFY",
+    "payload": "https://open.spotify.com/track/0McxF8eId0vNfcOig2RoZ6?si=OrvjSDFOS5OCFZ8bANg_6g"
   }
 ]
