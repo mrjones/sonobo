@@ -299,18 +299,114 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Content-type','text/html')
             self.end_headers()
             self.wfile.write(("<html><body><div><a href=/log>Log</a></div><div><form method=POST action=/updatesongmap><textarea name=songmap rows=50 cols=120>%s</textarea></div><div><input type=submit></div></form></body</html>" % json.dumps(self.sonobo.get_songmap_json(), indent=2)).encode('utf-8'))
-        elif self.path == '/log':
-            with open(self.log_filename, 'rb') as log_file:
-                self.send_response(200)
-                self.send_header('Content-type', 'text/plain')
-                self.end_headers()
-                self.wfile.write(log_file.read())
+        elif self.path.startswith('/log'):
+            self._handle_log_request()
         else:
             self.send_response(404)
             self.end_headers()
             self.wfile.write(b'')
         log.info('do_GET done')
 
+    def _handle_log_request(self) -> None:
+        # Parse query parameters
+        url_parts = urllib.parse.urlparse(self.path)
+        query_params = urllib.parse.parse_qs(url_parts.query)
+        
+        # Configuration
+        lines_per_page = 100
+        
+        # Get page number (default to last page)
+        try:
+            total_lines = sum(1 for _ in open(self.log_filename, 'r'))
+        except (IOError, OSError):
+            self.send_response(404)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            self.wfile.write(b'<html><body>Log file not found</body></html>')
+            return
+            
+        total_pages = max(1, (total_lines + lines_per_page - 1) // lines_per_page)
+        
+        # Default to last page (tail of file)
+        page = int(query_params.get('page', [total_pages])[0])
+        page = max(1, min(page, total_pages))
+        
+        # Calculate line range for this page
+        start_line = (page - 1) * lines_per_page
+        end_line = min(start_line + lines_per_page, total_lines)
+        
+        # Read the specific chunk of the file
+        try:
+            with open(self.log_filename, 'r') as log_file:
+                lines = []
+                for i, line in enumerate(log_file):
+                    if i >= start_line and i < end_line:
+                        lines.append(line.rstrip('\n'))
+                    elif i >= end_line:
+                        break
+                        
+            log_content = '\n'.join(lines)
+        except (IOError, OSError):
+            log_content = "Error reading log file"
+        
+        # Generate HTML response
+        html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <title>Sonobo Log Viewer</title>
+    <style>
+        body {{ font-family: monospace; margin: 20px; }}
+        .nav {{ margin-bottom: 20px; }}
+        .nav button {{ margin: 5px; padding: 10px 15px; }}
+        .log-content {{ 
+            background-color: #f5f5f5; 
+            border: 1px solid #ddd; 
+            padding: 15px; 
+            white-space: pre-wrap; 
+            overflow-x: auto; 
+            max-height: 70vh; 
+            overflow-y: auto;
+        }}
+        .info {{ margin-bottom: 10px; color: #666; }}
+    </style>
+</head>
+<body>
+    <h1>Sonobo Log Viewer</h1>
+    <div class="info">
+        Showing lines {start_line + 1}-{end_line} of {total_lines} 
+        (Page {page} of {total_pages}, {lines_per_page} lines per page)
+    </div>
+    <div class="nav">
+        <form style="display: inline;" method="get" action="/log">
+            <input type="hidden" name="page" value="1">
+            <button type="submit" {'disabled' if page <= 1 else ''}>⏮️ First</button>
+        </form>
+        <form style="display: inline;" method="get" action="/log">
+            <input type="hidden" name="page" value="{page - 1}">
+            <button type="submit" {'disabled' if page <= 1 else ''}>⬅️ Previous</button>
+        </form>
+        <form style="display: inline;" method="get" action="/log">
+            <input type="hidden" name="page" value="{page + 1}">
+            <button type="submit" {'disabled' if page >= total_pages else ''}>➡️ Next</button>
+        </form>
+        <form style="display: inline;" method="get" action="/log">
+            <input type="hidden" name="page" value="{total_pages}">
+            <button type="submit" {'disabled' if page >= total_pages else ''}>⏭️ Last</button>
+        </form>
+        <form style="display: inline;" method="get" action="/log">
+            Page: <input type="number" name="page" value="{page}" min="1" max="{total_pages}" style="width: 60px;">
+            <button type="submit">Go</button>
+        </form>
+        <a href="/" style="margin-left: 20px;">⬅️ Back to Home</a>
+    </div>
+    <div class="log-content">{log_content.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')}</div>
+</body>
+</html>"""
+        
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(html.encode('utf-8'))
 
     def do_POST(self) -> None:
         log.info('do_POST %s', self.path)
