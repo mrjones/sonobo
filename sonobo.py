@@ -295,10 +295,7 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self) -> None:
         log.info('do_GET %s', self.path)
         if self.path == '/':
-            self.send_response(200)
-            self.send_header('Content-type','text/html')
-            self.end_headers()
-            self.wfile.write(("<html><body><div><a href=/log>Log</a></div><div><form method=POST action=/updatesongmap><textarea name=songmap rows=50 cols=120>%s</textarea></div><div><input type=submit></div></form></body</html>" % json.dumps(self.sonobo.get_songmap_json(), indent=2)).encode('utf-8'))
+            self._handle_songmap_editor()
         elif self.path.startswith('/log'):
             self._handle_log_request()
         else:
@@ -306,6 +303,121 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b'')
         log.info('do_GET done')
+
+    def _handle_songmap_editor(self) -> None:
+        songmap_data = self.sonobo.get_songmap_json()
+        
+        # Generate table rows for existing data
+        table_rows = ""
+        for i, song in enumerate(songmap_data):
+            table_rows += f"""
+            <tr id="row-{i}">
+                <td><input type="text" name="debugName_{i}" value="{song['debugName'].replace('"', '&quot;')}" style="width: 200px;"></td>
+                <td><input type="text" name="key_{i}" value="{song['key']}" style="width: 50px;" maxlength="1"></td>
+                <td>
+                    <select name="kind_{i}" style="width: 150px;">
+                        <option value="SPOTIFY" {'selected' if song['kind'] == 'SPOTIFY' else ''}>SPOTIFY</option>
+                        <option value="SONOS_PLAYLIST_NAME" {'selected' if song['kind'] == 'SONOS_PLAYLIST_NAME' else ''}>SONOS_PLAYLIST_NAME</option>
+                    </select>
+                </td>
+                <td><input type="text" name="payload_{i}" value="{song['payload'].replace('"', '&quot;')}" style="width: 400px;"></td>
+                <td><button type="button" onclick="removeRow({i})">Remove</button></td>
+            </tr>"""
+        
+        html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <title>Sonobo Songmap Editor</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 20px; }}
+        table {{ border-collapse: collapse; width: 100%; margin-top: 20px; }}
+        th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+        th {{ background-color: #f2f2f2; }}
+        input, select {{ margin: 2px; }}
+        .nav {{ margin-bottom: 20px; }}
+        .controls {{ margin: 20px 0; }}
+        .controls button {{ margin: 5px; padding: 10px 15px; }}
+    </style>
+</head>
+<body>
+    <h1>Sonobo Songmap Editor</h1>
+    <div class="nav">
+        <a href="/log">View Logs</a>
+    </div>
+    
+    <form id="songmapForm" method="POST" action="/updatesongmap">
+        <input type="hidden" id="rowCount" name="rowCount" value="{len(songmap_data)}">
+        
+        <div class="controls">
+            <button type="button" onclick="addRow()">Add New Song</button>
+            <button type="submit">Save Songmap</button>
+        </div>
+        
+        <table id="songTable">
+            <thead>
+                <tr>
+                    <th>Debug Name</th>
+                    <th>Key</th>
+                    <th>Kind</th>
+                    <th>Payload</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="songTableBody">
+                {table_rows}
+            </tbody>
+        </table>
+        
+        <div class="controls">
+            <button type="button" onclick="addRow()">Add New Song</button>
+            <button type="submit">Save Songmap</button>
+        </div>
+    </form>
+
+    <script>
+        let nextRowId = {len(songmap_data)};
+        
+        function addRow() {{
+            const tbody = document.getElementById('songTableBody');
+            const newRow = document.createElement('tr');
+            newRow.id = `row-${{nextRowId}}`;
+            newRow.innerHTML = `
+                <td><input type="text" name="debugName_${{nextRowId}}" value="" style="width: 200px;"></td>
+                <td><input type="text" name="key_${{nextRowId}}" value="" style="width: 50px;" maxlength="1"></td>
+                <td>
+                    <select name="kind_${{nextRowId}}" style="width: 150px;">
+                        <option value="SPOTIFY" selected>SPOTIFY</option>
+                        <option value="SONOS_PLAYLIST_NAME">SONOS_PLAYLIST_NAME</option>
+                    </select>
+                </td>
+                <td><input type="text" name="payload_${{nextRowId}}" value="" style="width: 400px;"></td>
+                <td><button type="button" onclick="removeRow(${{nextRowId}})">Remove</button></td>
+            `;
+            tbody.appendChild(newRow);
+            nextRowId++;
+            updateRowCount();
+        }}
+        
+        function removeRow(rowId) {{
+            const row = document.getElementById(`row-${{rowId}}`);
+            if (row) {{
+                row.remove();
+                updateRowCount();
+            }}
+        }}
+        
+        function updateRowCount() {{
+            const rows = document.getElementById('songTableBody').children.length;
+            document.getElementById('rowCount').value = rows;
+        }}
+    </script>
+</body>
+</html>"""
+        
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(html.encode('utf-8'))
 
     def _handle_log_request(self) -> None:
         # Parse query parameters
@@ -442,8 +554,41 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
                 body.decode('utf-8'),
                 keep_blank_values=True)
 
-            log.debug("smap: %s", postvars['songmap'][0])
-            songmap_json: list[JsonSongT] = json.loads(postvars['songmap'][0])
+            # Check if this is the new tabular format or old JSON format
+            if 'songmap' in postvars:
+                # Old JSON format
+                log.debug("smap (JSON): %s", postvars['songmap'][0])
+                songmap_json: list[JsonSongT] = json.loads(postvars['songmap'][0])
+            else:
+                # New tabular format - reconstruct JSON from form fields
+                songmap_json: list[JsonSongT] = []
+                
+                # Find all row indices by looking for debugName fields
+                row_indices = set()
+                for key in postvars.keys():
+                    if key.startswith('debugName_'):
+                        row_id = key.split('_')[1]
+                        row_indices.add(int(row_id))
+                
+                # Sort to maintain consistent order
+                for row_id in sorted(row_indices):
+                    debug_name = postvars.get(f'debugName_{row_id}', [''])[0].strip()
+                    key = postvars.get(f'key_{row_id}', [''])[0].strip()
+                    kind = postvars.get(f'kind_{row_id}', ['SPOTIFY'])[0]
+                    payload = postvars.get(f'payload_{row_id}', [''])[0].strip()
+                    
+                    # Only add rows that have at least a key and payload
+                    if key and payload:
+                        song_entry: JsonSongT = {
+                            'debugName': debug_name if debug_name else f'Song {key}',
+                            'key': key,
+                            'kind': kind,
+                            'payload': payload
+                        }
+                        songmap_json.append(song_entry)
+                
+                log.debug("smap (tabular): %d songs reconstructed", len(songmap_json))
+            
             self.sonobo.update_code_to_song_map(songmap_json)
 
             shutil.copyfile('songmap.json', 'songmap-%d.json' % time.time())
