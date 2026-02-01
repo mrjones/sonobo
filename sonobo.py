@@ -46,6 +46,7 @@ KEY_LEFTSHIFT = 42
 KEY_RIGHTSHIFT = 54
 
 KEY_M = 50
+KEY_A = 30
 
 KEY_STRING_TO_CODE_MAP = {
     '1': 2,
@@ -275,6 +276,9 @@ class Sonobo:
                 else:
                     log.info("Grouping 'Move' with Living Room")
                     move_speaker.join(self.coordinator())
+            elif code == KEY_A and self.shift_pressed:
+                log.info("Party mode: grouping all speakers")
+                self.coordinator().partymode()
             elif song := self.song_for_code(code):
                 if fast_repeat:
                     log.info("Ignoring fast-repeat of %d", code)
