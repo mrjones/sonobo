@@ -45,6 +45,8 @@ KEY_F12 = 88
 KEY_LEFTSHIFT = 42
 KEY_RIGHTSHIFT = 54
 
+KEY_M = 50
+
 KEY_STRING_TO_CODE_MAP = {
     '1': 2,
     '2': 3,
@@ -109,19 +111,27 @@ class Sonobo:
     key_code_to_song_map: dict[int, SongInfo] = {}
     mutex = threading.Lock()
     speaker = None
+    all_speakers = None
 
     last_key = None
     last_key_timestamp = None
     shift_pressed = False
 
-    def __init__(self, songmap_json: list[JsonSongT], speaker, clock: Clock):
+    def __init__(self, songmap_json: list[JsonSongT], speaker, all_speakers, clock: Clock):
         self.songmap_json = songmap_json
         self.key_code_to_song_map = songmap_json_to_map(songmap_json)
         self.speaker = speaker
+        self.all_speakers = all_speakers
         self.clock = clock
         self.last_key = -1
         self.last_key_timestamp = 0.0 # seconds
         self.shift_pressed = False
+
+    def speaker_with_name(self, name: str):
+        for speaker in self.all_speakers:
+            if speaker.player_name == name:
+                return speaker
+        return None
 
     def get_songmap_json(self) -> list[JsonSongT]:
         self.mutex.acquire()
@@ -255,6 +265,16 @@ class Sonobo:
                 log.info("=== Dumping Sonos Playlist IDs ===")
                 for playlist in self.coordinator().get_sonos_playlists():
                     log.info("title=%s item_id=%s", playlist.title, playlist.item_id)
+            elif code == KEY_M and self.shift_pressed:
+                move_speaker = self.speaker_with_name('Move')
+                if move_speaker is None:
+                    log.info("Could not find 'Move' speaker")
+                elif move_speaker.group.coordinator == self.coordinator():
+                    log.info("Ungrouping 'Move' from Living Room")
+                    move_speaker.unjoin()
+                else:
+                    log.info("Grouping 'Move' with Living Room")
+                    move_speaker.join(self.coordinator())
             elif song := self.song_for_code(code):
                 if fast_repeat:
                     log.info("Ignoring fast-repeat of %d", code)
@@ -667,7 +687,7 @@ def main() -> None:
     log.info("Song map (%s) has %d songs", 'songmap.json', len(key_code_to_song_map))
     log.debug(key_code_to_song_map)
 
-    sonobo = Sonobo(json_songmap_contents, living_room_speaker, Clock())
+    sonobo = Sonobo(json_songmap_contents, living_room_speaker, speakers, Clock())
 
     HTTP_PORT = 8080
     def hwrapper(*args):
