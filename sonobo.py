@@ -249,13 +249,15 @@ class Sonobo:
                         self.coordinator().clear_queue()
                         living_room_sharelink = soco.plugins.sharelink.ShareLinkPlugin(self.coordinator())
                         living_room_sharelink.add_share_link_to_queue(song.payload)
-                        self.coordinator().play()
+                        self.coordinator().play_from_queue(0)
                     elif song.kind == 'SONOS_PLAYLIST_NAME':
                         playlist = self.coordinator().get_sonos_playlist_by_attr(
                             'title', song.payload)
                         self.coordinator().clear_queue()
                         self.coordinator().add_to_queue(playlist)
                         self.coordinator().play()
+                    elif song.kind == 'TV_AUDIO':
+                        self.coordinator().switch_to_tv()
                     else:
                         log.info('unknown song kind: %s', song.kind)
 
@@ -306,7 +308,7 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
 
     def _handle_songmap_editor(self) -> None:
         songmap_data = self.sonobo.get_songmap_json()
-        
+
         # Generate table rows for existing data
         table_rows = ""
         for i, song in enumerate(songmap_data):
@@ -318,12 +320,13 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
                     <select name="kind_{i}" style="width: 150px;">
                         <option value="SPOTIFY" {'selected' if song['kind'] == 'SPOTIFY' else ''}>SPOTIFY</option>
                         <option value="SONOS_PLAYLIST_NAME" {'selected' if song['kind'] == 'SONOS_PLAYLIST_NAME' else ''}>SONOS_PLAYLIST_NAME</option>
+                        <option value="TV_AUDIO" {'selected' if song['kind'] == 'TV_AUDIO' else ''}>TV_AUDIO</option>
                     </select>
                 </td>
                 <td><input type="text" name="payload_{i}" value="{song['payload'].replace('"', '&quot;')}" style="width: 400px;"></td>
                 <td><button type="button" onclick="removeRow({i})">Remove</button></td>
             </tr>"""
-        
+
         html = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -344,15 +347,15 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
     <div class="nav">
         <a href="/log">View Logs</a>
     </div>
-    
+
     <form id="songmapForm" method="POST" action="/updatesongmap">
         <input type="hidden" id="rowCount" name="rowCount" value="{len(songmap_data)}">
-        
+
         <div class="controls">
             <button type="button" onclick="addRow()">Add New Song</button>
             <button type="submit">Save Songmap</button>
         </div>
-        
+
         <table id="songTable">
             <thead>
                 <tr>
@@ -367,7 +370,7 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
                 {table_rows}
             </tbody>
         </table>
-        
+
         <div class="controls">
             <button type="button" onclick="addRow()">Add New Song</button>
             <button type="submit">Save Songmap</button>
@@ -376,7 +379,7 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
 
     <script>
         let nextRowId = {len(songmap_data)};
-        
+
         function addRow() {{
             const tbody = document.getElementById('songTableBody');
             const newRow = document.createElement('tr');
@@ -397,7 +400,7 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
             nextRowId++;
             updateRowCount();
         }}
-        
+
         function removeRow(rowId) {{
             const row = document.getElementById(`row-${{rowId}}`);
             if (row) {{
@@ -405,7 +408,7 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
                 updateRowCount();
             }}
         }}
-        
+
         function updateRowCount() {{
             const rows = document.getElementById('songTableBody').children.length;
             document.getElementById('rowCount').value = rows;
@@ -413,7 +416,7 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
     </script>
 </body>
 </html>"""
-        
+
         self.send_response(200)
         self.send_header('Content-type', 'text/html')
         self.end_headers()
@@ -423,10 +426,10 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
         # Parse query parameters
         url_parts = urllib.parse.urlparse(self.path)
         query_params = urllib.parse.parse_qs(url_parts.query)
-        
+
         # Configuration
         lines_per_page = 100
-        
+
         # Get page number (default to last page)
         try:
             total_lines = sum(1 for _ in open(self.log_filename, 'r'))
@@ -436,17 +439,17 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b'<html><body>Log file not found</body></html>')
             return
-            
+
         total_pages = max(1, (total_lines + lines_per_page - 1) // lines_per_page)
-        
+
         # Default to last page (tail of file)
         page = int(query_params.get('page', [total_pages])[0])
         page = max(1, min(page, total_pages))
-        
+
         # Calculate line range for this page
         start_line = (page - 1) * lines_per_page
         end_line = min(start_line + lines_per_page, total_lines)
-        
+
         # Read the specific chunk of the file
         try:
             with open(self.log_filename, 'r') as log_file:
@@ -456,11 +459,11 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
                         lines.append(line.rstrip('\n'))
                     elif i >= end_line:
                         break
-                        
+
             log_content = '\n'.join(lines)
         except (IOError, OSError):
             log_content = "Error reading log file"
-        
+
         # Generate HTML response
         html = f"""<!DOCTYPE html>
 <html>
@@ -470,13 +473,13 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
         body {{ font-family: monospace; margin: 20px; }}
         .nav {{ margin-bottom: 20px; }}
         .nav button {{ margin: 5px; padding: 10px 15px; }}
-        .log-content {{ 
-            background-color: #f5f5f5; 
-            border: 1px solid #ddd; 
-            padding: 15px; 
-            white-space: pre-wrap; 
-            overflow-x: auto; 
-            max-height: 70vh; 
+        .log-content {{
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+            padding: 15px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+            max-height: 70vh;
             overflow-y: auto;
         }}
         .info {{ margin-bottom: 10px; color: #666; }}
@@ -485,7 +488,7 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
 <body>
     <h1>Sonobo Log Viewer</h1>
     <div class="info">
-        Showing lines {start_line + 1}-{end_line} of {total_lines} 
+        Showing lines {start_line + 1}-{end_line} of {total_lines}
         (Page {page} of {total_pages}, {lines_per_page} lines per page)
     </div>
     <div class="nav">
@@ -514,7 +517,7 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
     <div class="log-content">{log_content.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')}</div>
 </body>
 </html>"""
-        
+
         self.send_response(200)
         self.send_header('Content-type', 'text/html')
         self.end_headers()
@@ -562,21 +565,21 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
             else:
                 # New tabular format - reconstruct JSON from form fields
                 songmap_json: list[JsonSongT] = []
-                
+
                 # Find all row indices by looking for debugName fields
                 row_indices = set()
                 for key in postvars.keys():
-                    if key.startswith('debugName_'):
+                    if key.startswith('key_'):
                         row_id = key.split('_')[1]
                         row_indices.add(int(row_id))
-                
+
                 # Sort to maintain consistent order
                 for row_id in sorted(row_indices):
                     debug_name = postvars.get(f'debugName_{row_id}', [''])[0].strip()
                     key = postvars.get(f'key_{row_id}', [''])[0].strip()
                     kind = postvars.get(f'kind_{row_id}', ['SPOTIFY'])[0]
                     payload = postvars.get(f'payload_{row_id}', [''])[0].strip()
-                    
+
                     # Only add rows that have at least a key and payload
                     if key and payload:
                         song_entry: JsonSongT = {
@@ -586,9 +589,9 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
                             'payload': payload
                         }
                         songmap_json.append(song_entry)
-                
+
                 log.debug("smap (tabular): %d songs reconstructed", len(songmap_json))
-            
+
             self.sonobo.update_code_to_song_map(songmap_json)
 
             shutil.copyfile('songmap.json', 'songmap-%d.json' % time.time())
