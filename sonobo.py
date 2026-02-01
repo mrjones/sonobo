@@ -42,6 +42,9 @@ KEY_BACKSPACE = 14
 
 KEY_F12 = 88
 
+KEY_LEFTSHIFT = 42
+KEY_RIGHTSHIFT = 54
+
 KEY_STRING_TO_CODE_MAP = {
     '1': 2,
     '2': 3,
@@ -109,6 +112,7 @@ class Sonobo:
 
     last_key = None
     last_key_timestamp = None
+    shift_pressed = False
 
     def __init__(self, songmap_json: list[JsonSongT], speaker, clock: Clock):
         self.songmap_json = songmap_json
@@ -117,6 +121,7 @@ class Sonobo:
         self.clock = clock
         self.last_key = -1
         self.last_key_timestamp = 0.0 # seconds
+        self.shift_pressed = False
 
     def get_songmap_json(self) -> list[JsonSongT]:
         self.mutex.acquire()
@@ -194,6 +199,12 @@ class Sonobo:
         return (typet, code, value, timestamp)
 
     def dispatch(self, typet: int, code: int, value: int, timestamp: float) -> None:
+        if typet == EV_KEY:
+            # Track shift key state
+            if code in (KEY_LEFTSHIFT, KEY_RIGHTSHIFT):
+                self.shift_pressed = (value == 1)
+                return
+
         if typet == EV_KEY and value == 1:
             # Keypress
             log.info("%d pressed", code)
@@ -216,7 +227,11 @@ class Sonobo:
                 self.coordinator().pause()
             elif code == KEY_UP:
                 current_vol = self.coordinator().volume
-                if current_vol >= MAX_VOLUME:
+                if self.shift_pressed:
+                    # Shift+Up: volume up with no limit
+                    log.info("Volume up (no limit) (%d + 2)", current_vol)
+                    self.coordinator().set_relative_volume(2)
+                elif current_vol >= MAX_VOLUME:
                     log.info("Volume-up capped at %d", current_vol)
                 else:
                     delta = min(2, MAX_VOLUME - current_vol)
