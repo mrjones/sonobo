@@ -47,6 +47,7 @@ KEY_RIGHTSHIFT = 54
 
 KEY_M = 50
 KEY_A = 30
+KEY_U = 22
 
 KEY_STRING_TO_CODE_MAP = {
     '1': 2,
@@ -279,6 +280,11 @@ class Sonobo:
             elif code == KEY_A and self.shift_pressed:
                 log.info("Party mode: grouping all speakers")
                 self.coordinator().partymode()
+            elif code == KEY_U and self.shift_pressed:
+                log.info("Ungrouping all speakers")
+                for speaker in self.all_speakers:
+                    if speaker != self.coordinator():
+                        speaker.unjoin()
             elif song := self.song_for_code(code):
                 if fast_repeat:
                     log.info("Ignoring fast-repeat of %d", code)
