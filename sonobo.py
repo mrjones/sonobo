@@ -354,9 +354,12 @@ class SonoboHTTPHandler(http.server.SimpleHTTPRequestHandler):
     def _handle_songmap_editor(self) -> None:
         songmap_data = self.sonobo.get_songmap_json()
 
+        # Sort by key for easier viewing
+        sorted_songmap = sorted(songmap_data, key=lambda s: s['key'])
+
         # Generate table rows for existing data
         table_rows = ""
-        for i, song in enumerate(songmap_data):
+        for i, song in enumerate(sorted_songmap):
             table_rows += f"""
             <tr id="row-{i}">
                 <td><input type="text" name="debugName_{i}" value="{song['debugName'].replace('"', '&quot;')}" style="width: 200px;"></td>
