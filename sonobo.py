@@ -202,7 +202,7 @@ class Sonobo:
         if typet == EV_KEY:
             # Track shift key state
             if code in (KEY_LEFTSHIFT, KEY_RIGHTSHIFT):
-                self.shift_pressed = (value == 1)
+                self.shift_pressed = (value != 0)  # 1=press, 2=repeat, 0=release
                 return
 
         if typet == EV_KEY and value == 1:
